@@ -28,13 +28,11 @@ import {
   Github,
   Linkedin,
   FileText,
-  CreditCard,
   Upload,
   Loader2,
   ArrowLeft,
   ArrowRight,
   Check,
-  AlertCircle,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 
@@ -44,9 +42,14 @@ const formSchema = z.object({
   email: z.string().email("Invalid email address"),
   password: z.string().min(8, "Password must be at least 8 characters"),
   confirmPassword: z.string(),
-  githubUrl: z.string().url("Invalid URL").optional().or(z.literal("")),
-  linkedinUrl: z.string().url("Invalid URL").optional().or(z.literal("")),
-  aadhaarNumber: z.string().length(12, "Aadhaar number must be 12 digits").regex(/^\d+$/, "Only numbers allowed"),
+  githubUrl: z.string().url("Please enter a valid GitHub URL").refine(
+    (url) => url.includes("github.com"),
+    "Must be a valid GitHub profile URL"
+  ),
+  linkedinUrl: z.string().url("Please enter a valid LinkedIn URL").refine(
+    (url) => url.includes("linkedin.com"),
+    "Must be a valid LinkedIn profile URL"
+  ),
 }).refine((data) => data.password === data.confirmPassword, {
   message: "Passwords don't match",
   path: ["confirmPassword"],
@@ -54,14 +57,12 @@ const formSchema = z.object({
 
 type FormData = z.infer<typeof formSchema>;
 
-const steps = ["Account", "Professional", "Verification"];
+const steps = ["Account", "Professional"];
 
 export function CandidateRegisterForm() {
   const [currentStep, setCurrentStep] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [resumeFile, setResumeFile] = useState<File | null>(null);
-  const [aadhaarFront, setAadhaarFront] = useState<File | null>(null);
-  const [aadhaarBack, setAadhaarBack] = useState<File | null>(null);
   const { toast } = useToast();
   const navigate = useNavigate();
 
@@ -75,13 +76,12 @@ export function CandidateRegisterForm() {
       confirmPassword: "",
       githubUrl: "",
       linkedinUrl: "",
-      aadhaarNumber: "",
     },
   });
 
   const handleFileChange = (
     e: React.ChangeEvent<HTMLInputElement>,
-    type: "resume" | "aadhaar-front" | "aadhaar-back"
+    type: "resume"
   ) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -104,17 +104,7 @@ export function CandidateRegisterForm() {
       return;
     }
 
-    switch (type) {
-      case "resume":
-        setResumeFile(file);
-        break;
-      case "aadhaar-front":
-        setAadhaarFront(file);
-        break;
-      case "aadhaar-back":
-        setAadhaarBack(file);
-        break;
-    }
+    setResumeFile(file);
   };
 
   const onSubmit = async (data: FormData) => {
@@ -122,15 +112,6 @@ export function CandidateRegisterForm() {
       toast({
         title: "Resume required",
         description: "Please upload your resume",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (!aadhaarFront || !aadhaarBack) {
-      toast({
-        title: "Aadhaar required",
-        description: "Please upload both front and back of your Aadhaar card",
         variant: "destructive",
       });
       return;
@@ -177,43 +158,32 @@ export function CandidateRegisterForm() {
         .upload(`${userId}/resume.${resumeExt}`, resumeFile);
       if (resumeError) throw resumeError;
 
-      const frontExt = aadhaarFront.name.split(".").pop();
-      const { error: frontError } = await supabase.storage
-        .from("aadhaar-documents")
-        .upload(`${userId}/front.${frontExt}`, aadhaarFront);
-      if (frontError) throw frontError;
-
-      const backExt = aadhaarBack.name.split(".").pop();
-      const { error: backError } = await supabase.storage
-        .from("aadhaar-documents")
-        .upload(`${userId}/back.${backExt}`, aadhaarBack);
-      if (backError) throw backError;
-
-      // 5. Get file URLs
-      const { data: resumeUrl } = supabase.storage
-        .from("resumes")
-        .getPublicUrl(`${userId}/resume.${resumeExt}`);
-
-      // 6. Create candidate profile
+      // 5. Create candidate profile and trigger profile analysis
       const { error: candidateError } = await supabase
         .from("candidate_profiles")
         .insert({
           user_id: userId,
           phone_number: data.phoneNumber,
-          github_url: data.githubUrl || null,
-          linkedin_url: data.linkedinUrl || null,
+          github_url: data.githubUrl,
+          linkedin_url: data.linkedinUrl,
           resume_url: `${userId}/resume.${resumeExt}`,
-          aadhaar_number: data.aadhaarNumber,
-          aadhaar_front_url: `${userId}/front.${frontExt}`,
-          aadhaar_back_url: `${userId}/back.${backExt}`,
-          verification_status: "pending",
+          verification_status: "verified", // Auto-verified since Aadhaar is skipped
         });
 
       if (candidateError) throw candidateError;
 
+      // Trigger profile analysis in background
+      supabase.functions.invoke("analyze-profile", {
+        body: {
+          github_url: data.githubUrl,
+          linkedin_url: data.linkedinUrl,
+          candidate_id: userId,
+        },
+      }).catch(console.error); // Don't block registration
+
       toast({
         title: "Registration successful!",
-        description: "Please check your email to verify your account. After verification, complete the face verification process.",
+        description: "Your profile is being analyzed. You can now sign in and start applying for jobs!",
       });
 
       navigate("/login");
@@ -446,107 +416,6 @@ export function CandidateRegisterForm() {
                       onChange={(e) => handleFileChange(e, "resume")}
                     />
                   </label>
-                </div>
-              </div>
-            </motion.div>
-          )}
-
-          {/* Step 3: Aadhaar Verification */}
-          {currentStep === 2 && (
-            <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              className="space-y-4"
-            >
-              <h2 className="text-xl font-semibold flex items-center gap-2">
-                <CreditCard className="h-5 w-5 text-success" />
-                Identity Verification
-              </h2>
-
-              <div className="p-4 rounded-lg bg-warning/10 border border-warning/30">
-                <div className="flex items-start gap-3">
-                  <AlertCircle className="h-5 w-5 text-warning shrink-0 mt-0.5" />
-                  <div>
-                    <p className="text-sm font-medium text-warning">Important</p>
-                    <p className="text-sm text-muted-foreground">
-                      After registration, you'll need to complete a face verification to match with your Aadhaar photo.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <FormField
-                control={form.control}
-                name="aadhaarNumber"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Aadhaar Card Number</FormLabel>
-                    <FormControl>
-                      <div className="relative">
-                        <CreditCard className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                        <Input placeholder="123456789012" maxLength={12} className="pl-10" {...field} />
-                      </div>
-                    </FormControl>
-                    <FormDescription>12-digit Aadhaar number</FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <div className="grid gap-4 md:grid-cols-2">
-                <div>
-                  <Label>Aadhaar Card Front</Label>
-                  <div className="mt-2">
-                    <label className="cursor-pointer block">
-                      <div className={`flex items-center justify-center gap-3 p-6 rounded-lg border-2 border-dashed transition-colors ${aadhaarFront ? "border-success bg-success/10" : "border-border hover:border-primary hover:bg-secondary/50"}`}>
-                        {aadhaarFront ? (
-                          <>
-                            <Check className="h-5 w-5 text-success" />
-                            <span className="text-xs truncate max-w-[100px]">{aadhaarFront.name}</span>
-                          </>
-                        ) : (
-                          <>
-                            <Upload className="h-5 w-5 text-muted-foreground" />
-                            <span className="text-sm text-muted-foreground">Front side</span>
-                          </>
-                        )}
-                      </div>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={(e) => handleFileChange(e, "aadhaar-front")}
-                      />
-                    </label>
-                  </div>
-                </div>
-
-                <div>
-                  <Label>Aadhaar Card Back</Label>
-                  <div className="mt-2">
-                    <label className="cursor-pointer block">
-                      <div className={`flex items-center justify-center gap-3 p-6 rounded-lg border-2 border-dashed transition-colors ${aadhaarBack ? "border-success bg-success/10" : "border-border hover:border-primary hover:bg-secondary/50"}`}>
-                        {aadhaarBack ? (
-                          <>
-                            <Check className="h-5 w-5 text-success" />
-                            <span className="text-xs truncate max-w-[100px]">{aadhaarBack.name}</span>
-                          </>
-                        ) : (
-                          <>
-                            <Upload className="h-5 w-5 text-muted-foreground" />
-                            <span className="text-sm text-muted-foreground">Back side</span>
-                          </>
-                        )}
-                      </div>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={(e) => handleFileChange(e, "aadhaar-back")}
-                      />
-                    </label>
-                  </div>
                 </div>
               </div>
             </motion.div>

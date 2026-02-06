@@ -5,6 +5,7 @@ import { GlassCard } from "@/components/ui/glass-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   Select,
   SelectContent,
@@ -18,15 +19,17 @@ import {
   Briefcase,
   MapPin,
   Clock,
-  DollarSign,
   Building2,
   Filter,
   X,
   ChevronRight,
   Zap,
   Calendar,
+  Star,
+  Heart,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useToast } from "@/hooks/use-toast";
 
 interface Job {
   id: string;
@@ -44,6 +47,10 @@ interface Job {
   application_deadline: string | null;
   required_skills: string[];
   created_at: string;
+  match_score?: number;
+  matching_skills?: string[];
+  is_favorited?: boolean;
+  priority_level?: number;
 }
 
 const fields = [
@@ -77,10 +84,13 @@ const locationTypes = [
 ];
 
 export default function BrowseJobsPage() {
+  const { user } = useAuth();
+  const { toast } = useToast();
   const [jobs, setJobs] = useState<Job[]>([]);
   const [filteredJobs, setFilteredJobs] = useState<Job[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showFilters, setShowFilters] = useState(false);
+  const [sortBy, setSortBy] = useState("match");
 
   // Filters
   const [searchQuery, setSearchQuery] = useState("");
@@ -91,22 +101,47 @@ export default function BrowseJobsPage() {
 
   useEffect(() => {
     fetchJobs();
-  }, []);
+  }, [user]);
 
   useEffect(() => {
     applyFilters();
-  }, [jobs, searchQuery, selectedField, selectedExperience, selectedLocation, salaryRange]);
+  }, [jobs, searchQuery, selectedField, selectedExperience, selectedLocation, salaryRange, sortBy]);
 
   const fetchJobs = async () => {
     try {
-      const { data, error } = await supabase
+      // Fetch all active jobs
+      const { data: jobsData, error } = await supabase
         .from("jobs")
         .select("*")
         .eq("status", "active")
         .order("created_at", { ascending: false });
 
       if (error) throw error;
-      setJobs(data || []);
+
+      let enrichedJobs = jobsData || [];
+
+      // If user is logged in, fetch job priorities
+      if (user) {
+        const { data: priorities } = await supabase
+          .from("job_priorities")
+          .select("job_id, match_score, matching_skills, is_favorited, priority_level")
+          .eq("candidate_id", user.id);
+
+        const priorityMap = new Map((priorities || []).map(p => [p.job_id, p]));
+
+        enrichedJobs = enrichedJobs.map(job => {
+          const priority = priorityMap.get(job.id);
+          return {
+            ...job,
+            match_score: priority?.match_score || 0,
+            matching_skills: priority?.matching_skills || [],
+            is_favorited: priority?.is_favorited || false,
+            priority_level: priority?.priority_level || 0,
+          };
+        });
+      }
+
+      setJobs(enrichedJobs);
     } catch (error) {
       console.error("Error fetching jobs:", error);
     } finally {
@@ -149,6 +184,15 @@ export default function BrowseJobsPage() {
       const minSalary = job.salary_min || 0;
       return minSalary >= salaryRange[0] && minSalary <= salaryRange[1];
     });
+
+    // Sort
+    if (sortBy === "match") {
+      filtered.sort((a, b) => (b.match_score || 0) - (a.match_score || 0));
+    } else if (sortBy === "salary") {
+      filtered.sort((a, b) => (b.salary_min || 0) - (a.salary_min || 0));
+    } else if (sortBy === "recent") {
+      filtered.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    }
 
     setFilteredJobs(filtered);
   };
@@ -218,6 +262,16 @@ export default function BrowseJobsPage() {
               className="pl-9"
             />
           </div>
+          <Select value={sortBy} onValueChange={setSortBy}>
+            <SelectTrigger className="w-36">
+              <SelectValue placeholder="Sort by" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="match">Best Match</SelectItem>
+              <SelectItem value="recent">Most Recent</SelectItem>
+              <SelectItem value="salary">Highest Salary</SelectItem>
+            </SelectContent>
+          </Select>
           <Button
             variant="outline"
             onClick={() => setShowFilters(!showFilters)}
@@ -354,13 +408,19 @@ export default function BrowseJobsPage() {
                       <Building2 className="h-6 w-6 text-primary" />
                     </div>
                     <div className="flex items-center gap-2">
+                      {job.match_score && job.match_score > 0 && (
+                        <span className="text-xs font-medium bg-success/10 text-success px-2 py-0.5 rounded-full flex items-center gap-1">
+                          <Star className="h-3 w-3" />
+                          {job.match_score}%
+                        </span>
+                      )}
                       <span
                         className={cn(
                           "rounded-full px-2 py-0.5 text-xs font-medium capitalize",
                           job.toughness_level === "easy" && "bg-success/10 text-success",
                           job.toughness_level === "medium" && "bg-warning/10 text-warning",
                           job.toughness_level === "hard" && "bg-danger/10 text-danger",
-                          job.toughness_level === "expert" && "bg-purple-500/10 text-purple-500"
+                          job.toughness_level === "expert" && "bg-primary/10 text-primary"
                         )}
                       >
                         <Zap className="mr-1 inline h-3 w-3" />
@@ -389,7 +449,24 @@ export default function BrowseJobsPage() {
                     </span>
                   </div>
 
-                  {job.required_skills && job.required_skills.length > 0 && (
+                  {/* Show matching skills if available, otherwise required skills */}
+                  {job.matching_skills && job.matching_skills.length > 0 ? (
+                    <div className="mt-3 flex flex-wrap gap-1">
+                      {job.matching_skills.slice(0, 3).map((skill) => (
+                        <span
+                          key={skill}
+                          className="rounded-full bg-success/10 text-success px-2 py-0.5 text-xs font-medium"
+                        >
+                          ✓ {skill}
+                        </span>
+                      ))}
+                      {job.matching_skills.length > 3 && (
+                        <span className="rounded-full bg-success/10 text-success px-2 py-0.5 text-xs">
+                          +{job.matching_skills.length - 3} matched
+                        </span>
+                      )}
+                    </div>
+                  ) : job.required_skills && job.required_skills.length > 0 && (
                     <div className="mt-3 flex flex-wrap gap-1">
                       {job.required_skills.slice(0, 3).map((skill) => (
                         <span
