@@ -7,8 +7,8 @@ import LandingPage from "./pages/LandingPage";
 import RegisterPage from "./pages/RegisterPage";
 import DashboardPage from "./pages/DashboardPage";
 import InterviewPage from "./pages/InterviewPage";
+import CandidateReportPage from "./pages/CandidateReportPage";
 import NotFound from "./pages/NotFound";
-
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -23,6 +23,7 @@ const App = () => (
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/interview" element={<InterviewPage />} />
           <Route path="/interview/:id" element={<InterviewPage />} />
+          <Route path="/report/:id" element={<CandidateReportPage />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
