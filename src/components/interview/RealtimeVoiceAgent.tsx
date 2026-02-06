@@ -29,7 +29,9 @@ export interface VoiceMessage {
 }
 
 interface RealtimeVoiceAgentProps {
-  agentId: string;
+  jobField?: string;
+  toughnessLevel?: string;
+  jobTitle?: string;
   onMessage?: (message: VoiceMessage) => void;
   onConnectionChange?: (connected: boolean) => void;
   onSpeakingChange?: (isSpeaking: boolean) => void;
@@ -38,7 +40,9 @@ interface RealtimeVoiceAgentProps {
 }
 
 export function RealtimeVoiceAgent({
-  agentId,
+  jobField = "Technical",
+  toughnessLevel = "medium",
+  jobTitle = "Software Engineer",
   onMessage,
   onConnectionChange,
   onSpeakingChange,
@@ -126,20 +130,23 @@ export function RealtimeVoiceAgent({
       // Request microphone permission
       await navigator.mediaDevices.getUserMedia({ audio: true });
 
-      // Get token from edge function
+      // Get signed URL from edge function (it auto-creates agent if needed)
       const { data, error } = await supabase.functions.invoke(
         "elevenlabs-conversation-token",
-        { body: { agentId } }
+        { body: { jobField, toughnessLevel, jobTitle } }
       );
 
-      if (error || !data?.token) {
-        throw new Error(error?.message || "No token received");
+      if (error) {
+        throw new Error(error.message || "Failed to connect");
       }
 
-      // Start the conversation with WebRTC
+      if (!data?.signedUrl) {
+        throw new Error("No connection URL received");
+      }
+
+      // Start the conversation with WebSocket using signed URL
       await conversation.startSession({
-        conversationToken: data.token,
-        connectionType: "webrtc",
+        signedUrl: data.signedUrl,
       });
     } catch (error) {
       console.error("Failed to start conversation:", error);
@@ -151,7 +158,7 @@ export function RealtimeVoiceAgent({
     } finally {
       setIsConnecting(false);
     }
-  }, [agentId, conversation, toast]);
+  }, [jobField, toughnessLevel, jobTitle, conversation, toast]);
 
   const stopConversation = useCallback(async () => {
     await conversation.endSession();

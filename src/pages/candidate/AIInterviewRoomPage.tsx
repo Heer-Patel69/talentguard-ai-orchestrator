@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   VideoPanel,
   ContinuousVoicePanel,
+  RealtimeVoiceAgent,
   CodeEditorPanel,
   WhiteboardPanel,
   ProctoringMonitor,
@@ -37,6 +38,8 @@ import {
   Layout,
   Maximize2,
   Minimize2,
+  Mic,
+  Zap,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { GlassCard } from "@/components/ui/glass-card";
@@ -67,6 +70,7 @@ export default function AIInterviewRoomPage() {
   const [interviewType] = useState<InterviewType>(
     (searchParams.get("type") as InterviewType) || "technical"
   );
+  const [voiceMode, setVoiceMode] = useState<"standard" | "realtime">("realtime"); // Default to ElevenLabs realtime
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isListening, setIsListening] = useState(false);
@@ -436,11 +440,17 @@ export default function AIInterviewRoomPage() {
                 </div>
               </div>
 
-              <div className="flex items-center gap-3 p-3 rounded-lg bg-secondary/50">
-                <MessageSquare className="h-5 w-5 text-primary" />
+              <div className="flex items-center gap-3 p-3 rounded-lg bg-success/10 border border-success/30">
+                <Mic className="h-5 w-5 text-success" />
                 <div>
-                  <p className="font-medium">Voice & Text</p>
-                  <p className="text-sm text-muted-foreground">Respond verbally or type your answers</p>
+                  <p className="font-medium flex items-center gap-2">
+                    Real-time Voice
+                    <Badge variant="outline" className="text-xs bg-success/10 text-success border-success/30">
+                      <Zap className="h-3 w-3 mr-1" />
+                      AI-Powered
+                    </Badge>
+                  </p>
+                  <p className="text-sm text-muted-foreground">Natural conversation — just speak, no buttons needed</p>
                 </div>
               </div>
 
@@ -648,14 +658,28 @@ export default function AIInterviewRoomPage() {
           "flex flex-col",
           workspaceMode === "conversation" ? "col-span-9" : "col-span-4"
         )}>
-          <ContinuousVoicePanel
-            messages={messages}
-            isLoading={isLoading}
-            onSendMessage={handleSendMessage}
-            aiSpeaking={aiSpeaking}
-            autoListen={true}
-            className="h-full"
-          />
+          {voiceMode === "realtime" ? (
+            <RealtimeVoiceAgent
+              jobField={jobContext?.jobField}
+              toughnessLevel={
+                jobContext?.toughnessLevel 
+                  ? ["easy", "easy-medium", "medium", "medium-hard", "hard"][jobContext.toughnessLevel - 1] || "medium"
+                  : "medium"
+              }
+              jobTitle={jobContext?.jobTitle}
+              onSpeakingChange={setAiSpeaking}
+              className="h-full"
+            />
+          ) : (
+            <ContinuousVoicePanel
+              messages={messages}
+              isLoading={isLoading}
+              onSendMessage={handleSendMessage}
+              aiSpeaking={aiSpeaking}
+              autoListen={true}
+              className="h-full"
+            />
+          )}
         </div>
 
         {/* Right Panel - Workspace */}
