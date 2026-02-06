@@ -333,7 +333,7 @@ export default function MyApplicationsPage() {
                           </div>
                         </div>
 
-                        {/* AI Suggestions */}
+                        {/* AI Suggestions - Dynamic from round feedback */}
                         {app.status !== "shortlisted" && app.round_results?.some((r) => r.ai_feedback) && (
                           <div className="rounded-lg bg-primary/5 border border-primary/20 p-4">
                             <h4 className="font-medium flex items-center gap-2 mb-2">
@@ -341,9 +341,15 @@ export default function MyApplicationsPage() {
                               AI Improvement Suggestions
                             </h4>
                             <ul className="space-y-1 text-sm text-muted-foreground">
-                              <li>• Practice coding problems on platforms like LeetCode</li>
-                              <li>• Review system design fundamentals</li>
-                              <li>• Work on communication clarity during explanations</li>
+                              {app.round_results
+                                .filter((r) => r.ai_feedback)
+                                .slice(-3) // Get last 3 feedback items
+                                .map((r, idx) => (
+                                  <li key={idx}>• {r.ai_feedback}</li>
+                                ))}
+                              {!app.round_results.some((r) => r.ai_feedback) && (
+                                <li>• Complete more interview rounds to receive personalized suggestions</li>
+                              )}
                             </ul>
                           </div>
                         )}
