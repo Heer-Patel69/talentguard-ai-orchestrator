@@ -194,17 +194,17 @@ export default function CandidateDashboardPage() {
                 </h3>
               </div>
 
-              {candidateData?.verification_status !== "verified" ? (
+              {candidateData?.verification_status === "rejected" ? (
                 <div className="text-center py-12">
-                  <Shield className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                  <h4 className="font-medium mb-2">Complete Verification First</h4>
+                  <Shield className="h-12 w-12 text-danger mx-auto mb-4" />
+                  <h4 className="font-medium mb-2">Verification Failed</h4>
                   <p className="text-sm text-muted-foreground mb-4">
-                    You need to verify your identity before accessing interviews
+                    Please retry your identity verification to access interviews
                   </p>
                   <Button variant="hero" asChild>
                     <Link to="/verify-face">
                       <Camera className="mr-2 h-4 w-4" />
-                      Verify Now
+                      Retry Verification
                     </Link>
                   </Button>
                 </div>
