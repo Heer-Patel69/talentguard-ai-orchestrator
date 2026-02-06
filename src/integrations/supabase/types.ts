@@ -64,6 +64,42 @@ export type Database = {
           },
         ]
       }
+      candidate_demographics: {
+        Row: {
+          age_group: string | null
+          candidate_id: string
+          created_at: string
+          educational_institution: string | null
+          gender: string | null
+          geographic_region: string | null
+          id: string
+          updated_at: string
+          years_of_experience: number | null
+        }
+        Insert: {
+          age_group?: string | null
+          candidate_id: string
+          created_at?: string
+          educational_institution?: string | null
+          gender?: string | null
+          geographic_region?: string | null
+          id?: string
+          updated_at?: string
+          years_of_experience?: number | null
+        }
+        Update: {
+          age_group?: string | null
+          candidate_id?: string
+          created_at?: string
+          educational_institution?: string | null
+          gender?: string | null
+          geographic_region?: string | null
+          id?: string
+          updated_at?: string
+          years_of_experience?: number | null
+        }
+        Relationships: []
+      }
       candidate_profiles: {
         Row: {
           aadhaar_back_url: string | null
@@ -254,6 +290,225 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      fairness_alerts: {
+        Row: {
+          acknowledged_at: string | null
+          acknowledged_by: string | null
+          alert_type: string
+          category: Database["public"]["Enums"]["demographic_category"]
+          created_at: string
+          description: string
+          deviation_percentage: number | null
+          group_name: string
+          id: string
+          job_id: string
+          resolution_notes: string | null
+          resolved_at: string | null
+          resolved_by: string | null
+          severity: string
+          status: Database["public"]["Enums"]["alert_status"]
+          suggested_actions: Json | null
+          threshold_percentage: number | null
+          updated_at: string
+        }
+        Insert: {
+          acknowledged_at?: string | null
+          acknowledged_by?: string | null
+          alert_type: string
+          category: Database["public"]["Enums"]["demographic_category"]
+          created_at?: string
+          description: string
+          deviation_percentage?: number | null
+          group_name: string
+          id?: string
+          job_id: string
+          resolution_notes?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          severity?: string
+          status?: Database["public"]["Enums"]["alert_status"]
+          suggested_actions?: Json | null
+          threshold_percentage?: number | null
+          updated_at?: string
+        }
+        Update: {
+          acknowledged_at?: string | null
+          acknowledged_by?: string | null
+          alert_type?: string
+          category?: Database["public"]["Enums"]["demographic_category"]
+          created_at?: string
+          description?: string
+          deviation_percentage?: number | null
+          group_name?: string
+          id?: string
+          job_id?: string
+          resolution_notes?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          severity?: string
+          status?: Database["public"]["Enums"]["alert_status"]
+          suggested_actions?: Json | null
+          threshold_percentage?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      fairness_audit_reports: {
+        Row: {
+          compliance_status: string
+          created_at: string
+          findings: Json | null
+          generated_at: string
+          id: string
+          interviewer_id: string
+          job_id: string | null
+          metrics_snapshot: Json | null
+          overall_fairness_score: number | null
+          recommendations: Json | null
+          report_period_end: string
+          report_period_start: string
+          report_type: string
+          total_candidates_analyzed: number
+        }
+        Insert: {
+          compliance_status?: string
+          created_at?: string
+          findings?: Json | null
+          generated_at?: string
+          id?: string
+          interviewer_id: string
+          job_id?: string | null
+          metrics_snapshot?: Json | null
+          overall_fairness_score?: number | null
+          recommendations?: Json | null
+          report_period_end: string
+          report_period_start: string
+          report_type: string
+          total_candidates_analyzed?: number
+        }
+        Update: {
+          compliance_status?: string
+          created_at?: string
+          findings?: Json | null
+          generated_at?: string
+          id?: string
+          interviewer_id?: string
+          job_id?: string | null
+          metrics_snapshot?: Json | null
+          overall_fairness_score?: number | null
+          recommendations?: Json | null
+          report_period_end?: string
+          report_period_start?: string
+          report_type?: string
+          total_candidates_analyzed?: number
+        }
+        Relationships: []
+      }
+      fairness_metrics: {
+        Row: {
+          analysis_date: string
+          average_score: number | null
+          category: Database["public"]["Enums"]["demographic_category"]
+          chi_squared_value: number | null
+          created_at: string
+          disparate_impact_ratio: number | null
+          group_name: string
+          id: string
+          is_statistically_significant: boolean | null
+          job_id: string
+          p_value: number | null
+          pass_rate: number | null
+          passed_candidates: number
+          score_std_deviation: number | null
+          total_candidates: number
+          updated_at: string
+        }
+        Insert: {
+          analysis_date?: string
+          average_score?: number | null
+          category: Database["public"]["Enums"]["demographic_category"]
+          chi_squared_value?: number | null
+          created_at?: string
+          disparate_impact_ratio?: number | null
+          group_name: string
+          id?: string
+          is_statistically_significant?: boolean | null
+          job_id: string
+          p_value?: number | null
+          pass_rate?: number | null
+          passed_candidates?: number
+          score_std_deviation?: number | null
+          total_candidates?: number
+          updated_at?: string
+        }
+        Update: {
+          analysis_date?: string
+          average_score?: number | null
+          category?: Database["public"]["Enums"]["demographic_category"]
+          chi_squared_value?: number | null
+          created_at?: string
+          disparate_impact_ratio?: number | null
+          group_name?: string
+          id?: string
+          is_statistically_significant?: boolean | null
+          job_id?: string
+          p_value?: number | null
+          pass_rate?: number | null
+          passed_candidates?: number
+          score_std_deviation?: number | null
+          total_candidates?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      fairness_settings: {
+        Row: {
+          alert_dashboard_enabled: boolean
+          alert_email_enabled: boolean
+          auto_monthly_audit: boolean
+          created_at: string
+          disparate_impact_threshold: number
+          enable_blind_evaluation: boolean
+          enable_score_reweighting: boolean
+          id: string
+          interviewer_id: string
+          job_id: string | null
+          pass_rate_deviation_threshold: number
+          reweighting_factors: Json | null
+          updated_at: string
+        }
+        Insert: {
+          alert_dashboard_enabled?: boolean
+          alert_email_enabled?: boolean
+          auto_monthly_audit?: boolean
+          created_at?: string
+          disparate_impact_threshold?: number
+          enable_blind_evaluation?: boolean
+          enable_score_reweighting?: boolean
+          id?: string
+          interviewer_id: string
+          job_id?: string | null
+          pass_rate_deviation_threshold?: number
+          reweighting_factors?: Json | null
+          updated_at?: string
+        }
+        Update: {
+          alert_dashboard_enabled?: boolean
+          alert_email_enabled?: boolean
+          auto_monthly_audit?: boolean
+          created_at?: string
+          disparate_impact_threshold?: number
+          enable_blind_evaluation?: boolean
+          enable_score_reweighting?: boolean
+          id?: string
+          interviewer_id?: string
+          job_id?: string | null
+          pass_rate_deviation_threshold?: number
+          reweighting_factors?: Json | null
+          updated_at?: string
+        }
+        Relationships: []
       }
       interviewer_profiles: {
         Row: {
@@ -752,6 +1007,7 @@ export type Database = {
       }
     }
     Enums: {
+      alert_status: "active" | "acknowledged" | "resolved" | "dismissed"
       app_role: "interviewer" | "candidate"
       application_status:
         | "applied"
@@ -763,6 +1019,12 @@ export type Database = {
         | "withdrawn"
       company_age: "less_than_1" | "1_to_5" | "5_to_10" | "more_than_10"
       decision_recommendation: "shortlist" | "maybe" | "reject"
+      demographic_category:
+        | "gender"
+        | "region"
+        | "institution"
+        | "experience"
+        | "age_group"
       experience_level: "fresher" | "junior" | "mid" | "senior" | "architect"
       industry:
         | "it"
@@ -912,6 +1174,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      alert_status: ["active", "acknowledged", "resolved", "dismissed"],
       app_role: ["interviewer", "candidate"],
       application_status: [
         "applied",
@@ -924,6 +1187,13 @@ export const Constants = {
       ],
       company_age: ["less_than_1", "1_to_5", "5_to_10", "more_than_10"],
       decision_recommendation: ["shortlist", "maybe", "reject"],
+      demographic_category: [
+        "gender",
+        "region",
+        "institution",
+        "experience",
+        "age_group",
+      ],
       experience_level: ["fresher", "junior", "mid", "senior", "architect"],
       industry: [
         "it",
