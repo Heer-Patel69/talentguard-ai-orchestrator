@@ -9,6 +9,8 @@ import {
   useHiringFunnel,
   useLiveInterviews,
   useRecentActivity,
+  useFieldDistribution,
+  useWeeklyActivity,
 } from "@/hooks/useDashboardStats";
 import {
   Users,
@@ -40,26 +42,6 @@ import {
   Legend,
 } from "recharts";
 
-// Static field distribution data (could be fetched from DB later)
-const fieldDistribution = [
-  { field: "Frontend", candidates: 45 },
-  { field: "Backend", candidates: 38 },
-  { field: "Full Stack", candidates: 52 },
-  { field: "DevOps", candidates: 28 },
-  { field: "AI/ML", candidates: 35 },
-  { field: "Data Science", candidates: 30 },
-];
-
-const weeklyTrend = [
-  { day: "Mon", interviews: 12, hires: 2 },
-  { day: "Tue", interviews: 18, hires: 3 },
-  { day: "Wed", interviews: 15, hires: 2 },
-  { day: "Thu", interviews: 22, hires: 4 },
-  { day: "Fri", interviews: 28, hires: 5 },
-  { day: "Sat", interviews: 8, hires: 1 },
-  { day: "Sun", interviews: 5, hires: 1 },
-];
-
 function cn(...classes: (string | boolean | undefined)[]) {
   return classes.filter(Boolean).join(" ");
 }
@@ -69,6 +51,8 @@ export default function DashboardOverview() {
   const { data: funnelData, isLoading: funnelLoading } = useHiringFunnel();
   const { data: liveInterviews, isLoading: interviewsLoading } = useLiveInterviews();
   const { data: recentActivity, isLoading: activityLoading } = useRecentActivity();
+  const { data: fieldDistribution, isLoading: fieldLoading } = useFieldDistribution();
+  const { data: weeklyTrend, isLoading: weeklyLoading } = useWeeklyActivity();
 
   const statsConfig = [
     { 
@@ -283,27 +267,37 @@ export default function DashboardOverview() {
         {/* Field Distribution */}
         <GlassCard className="lg:col-span-1">
           <h3 className="mb-4 text-lg font-semibold">Field Distribution</h3>
-          <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={fieldDistribution} layout="vertical">
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-              <XAxis type="number" stroke="hsl(var(--muted-foreground))" fontSize={12} />
-              <YAxis 
-                type="category" 
-                dataKey="field" 
-                stroke="hsl(var(--muted-foreground))" 
-                fontSize={12}
-                width={80}
-              />
-              <Tooltip 
-                contentStyle={{ 
-                  backgroundColor: "hsl(var(--card))",
-                  border: "1px solid hsl(var(--border))",
-                  borderRadius: "8px"
-                }}
-              />
-              <Bar dataKey="candidates" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
+          {fieldLoading ? (
+            <div className="h-[220px] flex items-center justify-center">
+              <Skeleton className="h-full w-full" />
+            </div>
+          ) : (fieldDistribution?.length || 0) > 0 ? (
+            <ResponsiveContainer width="100%" height={220}>
+              <BarChart data={fieldDistribution} layout="vertical">
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                <XAxis type="number" stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                <YAxis 
+                  type="category" 
+                  dataKey="field" 
+                  stroke="hsl(var(--muted-foreground))" 
+                  fontSize={12}
+                  width={80}
+                />
+                <Tooltip 
+                  contentStyle={{ 
+                    backgroundColor: "hsl(var(--card))",
+                    border: "1px solid hsl(var(--border))",
+                    borderRadius: "8px"
+                  }}
+                />
+                <Bar dataKey="candidates" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="h-[220px] flex items-center justify-center text-muted-foreground">
+              No field data available
+            </div>
+          )}
         </GlassCard>
       </div>
 
@@ -312,45 +306,51 @@ export default function DashboardOverview() {
         {/* Weekly Trend */}
         <GlassCard>
           <h3 className="mb-4 text-lg font-semibold">Weekly Activity</h3>
-          <ResponsiveContainer width="100%" height={250}>
-            <AreaChart data={weeklyTrend}>
-              <defs>
-                <linearGradient id="colorInterviews" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3}/>
-                  <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0}/>
-                </linearGradient>
-                <linearGradient id="colorHires" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="hsl(var(--success))" stopOpacity={0.3}/>
-                  <stop offset="95%" stopColor="hsl(var(--success))" stopOpacity={0}/>
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-              <XAxis dataKey="day" stroke="hsl(var(--muted-foreground))" fontSize={12} />
-              <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} />
-              <Tooltip 
-                contentStyle={{ 
-                  backgroundColor: "hsl(var(--card))",
-                  border: "1px solid hsl(var(--border))",
-                  borderRadius: "8px"
-                }}
-              />
-              <Legend />
-              <Area 
-                type="monotone" 
-                dataKey="interviews" 
-                stroke="hsl(var(--primary))" 
-                fillOpacity={1} 
-                fill="url(#colorInterviews)" 
-              />
-              <Area 
-                type="monotone" 
-                dataKey="hires" 
-                stroke="hsl(var(--success))" 
-                fillOpacity={1} 
-                fill="url(#colorHires)" 
-              />
-            </AreaChart>
-          </ResponsiveContainer>
+          {weeklyLoading ? (
+            <div className="h-[250px] flex items-center justify-center">
+              <Skeleton className="h-full w-full" />
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height={250}>
+              <AreaChart data={weeklyTrend || []}>
+                <defs>
+                  <linearGradient id="colorInterviews" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0}/>
+                  </linearGradient>
+                  <linearGradient id="colorHires" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="hsl(var(--success))" stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor="hsl(var(--success))" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                <XAxis dataKey="day" stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                <Tooltip 
+                  contentStyle={{ 
+                    backgroundColor: "hsl(var(--card))",
+                    border: "1px solid hsl(var(--border))",
+                    borderRadius: "8px"
+                  }}
+                />
+                <Legend />
+                <Area 
+                  type="monotone" 
+                  dataKey="interviews" 
+                  stroke="hsl(var(--primary))" 
+                  fillOpacity={1} 
+                  fill="url(#colorInterviews)" 
+                />
+                <Area 
+                  type="monotone" 
+                  dataKey="hires" 
+                  stroke="hsl(var(--success))" 
+                  fillOpacity={1} 
+                  fill="url(#colorHires)" 
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          )}
         </GlassCard>
 
         {/* Live Interviews */}

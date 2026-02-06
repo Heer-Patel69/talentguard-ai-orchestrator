@@ -117,7 +117,8 @@ Important instructions:
 4. Extract key projects with their tech stacks
 5. Return valid JSON only - no markdown, no explanations`;
 
-    const response = await fetch("https://api.lovable.dev/api/v1/chat", {
+    // Use the correct Lovable AI Gateway endpoint
+    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -131,10 +132,9 @@ Important instructions:
             content: [
               { type: "text", text: prompt },
               {
-                type: "file",
-                file: {
-                  filename: "resume.pdf",
-                  file_data: `data:application/pdf;base64,${base64Pdf}`,
+                type: "image_url",
+                image_url: {
+                  url: `data:application/pdf;base64,${base64Pdf}`,
                 },
               },
             ],
