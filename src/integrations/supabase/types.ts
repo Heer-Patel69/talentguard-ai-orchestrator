@@ -304,6 +304,7 @@ export type Database = {
           projects: Json | null
           resume_url: string | null
           skills: string[] | null
+          suggested_job_preferences: Json | null
           updated_at: string
           user_id: string
           verification_confidence: number | null
@@ -333,6 +334,7 @@ export type Database = {
           projects?: Json | null
           resume_url?: string | null
           skills?: string[] | null
+          suggested_job_preferences?: Json | null
           updated_at?: string
           user_id: string
           verification_confidence?: number | null
@@ -362,6 +364,7 @@ export type Database = {
           projects?: Json | null
           resume_url?: string | null
           skills?: string[] | null
+          suggested_job_preferences?: Json | null
           updated_at?: string
           user_id?: string
           verification_confidence?: number | null
