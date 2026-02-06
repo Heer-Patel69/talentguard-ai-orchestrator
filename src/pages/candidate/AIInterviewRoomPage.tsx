@@ -1,10 +1,19 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { VideoPanel, ConversationPanel, CodeEditorPanel, type Message } from "@/components/interview";
+import {
+  VideoPanel,
+  ConversationPanel,
+  CodeEditorPanel,
+  WhiteboardPanel,
+  ProctoringMonitor,
+  useTextToSpeech,
+  type Message,
+} from "@/components/interview";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -25,20 +34,33 @@ import {
   Sparkles,
   Trophy,
   AlertTriangle,
+  Layout,
+  Maximize2,
+  Minimize2,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { GlassCard } from "@/components/ui/glass-card";
 import { supabase } from "@/integrations/supabase/client";
+import { cn } from "@/lib/utils";
 
 type InterviewStatus = "preparing" | "in-progress" | "completing" | "completed";
 type InterviewType = "technical" | "system-design" | "behavioral";
+type WorkspaceMode = "code" | "whiteboard" | "conversation";
 
 const INTERVIEW_DURATION = 45 * 60; // 45 minutes in seconds
+
+interface ProctoringEvent {
+  type: string;
+  timestamp: Date;
+  severity: "low" | "medium" | "high";
+  description: string;
+}
 
 export default function AIInterviewRoomPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { toast } = useToast();
+  const { speak, stop: stopSpeaking, isSpeaking: ttsIsSpeaking } = useTextToSpeech();
 
   // Interview state
   const [status, setStatus] = useState<InterviewStatus>("preparing");
@@ -50,6 +72,10 @@ export default function AIInterviewRoomPage() {
   const [isListening, setIsListening] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(true);
   const [aiSpeaking, setAiSpeaking] = useState(false);
+  const [workspaceMode, setWorkspaceMode] = useState<WorkspaceMode>(
+    interviewType === "system-design" ? "whiteboard" : interviewType === "technical" ? "code" : "conversation"
+  );
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   // Timer state
   const [elapsedTime, setElapsedTime] = useState(0);
@@ -60,9 +86,11 @@ export default function AIInterviewRoomPage() {
   const [showExitDialog, setShowExitDialog] = useState(false);
   const [showCompletionDialog, setShowCompletionDialog] = useState(false);
 
-  // Scores
+  // Scores & Proctoring
   const [currentScore, setCurrentScore] = useState(0);
   const [questionCount, setQuestionCount] = useState(0);
+  const [trustScore, setTrustScore] = useState(100);
+  const [proctoringEvents, setProctoringEvents] = useState<ProctoringEvent[]>([]);
 
   // Start interview timer
   useEffect(() => {
@@ -86,6 +114,17 @@ export default function AIInterviewRoomPage() {
     };
   }, [status]);
 
+  // Fullscreen handling
+  const toggleFullscreen = useCallback(() => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen();
+      setIsFullscreen(true);
+    } else {
+      document.exitFullscreen();
+      setIsFullscreen(false);
+    }
+  }, []);
+
   // Start interview with greeting
   const startInterview = useCallback(async () => {
     setStatus("in-progress");
@@ -106,6 +145,12 @@ export default function AIInterviewRoomPage() {
           },
         ]);
         setQuestionCount(1);
+
+        // Speak the greeting
+        if (isSpeaking) {
+          speak(greeting);
+          setAiSpeaking(true);
+        }
       }
     } catch (error) {
       console.error("Failed to start interview:", error);
@@ -117,7 +162,7 @@ export default function AIInterviewRoomPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [toast]);
+  }, [toast, isSpeaking, speak]);
 
   // Send message to AI agent
   const sendToAgent = async (conversationMessages: Array<{ role: string; content: string }>) => {
@@ -131,7 +176,8 @@ export default function AIInterviewRoomPage() {
         },
         body: JSON.stringify({
           messages: conversationMessages,
-          jobField: interviewType === "technical" ? "Data Structures and Algorithms" : interviewType,
+          jobField: interviewType === "technical" ? "Data Structures and Algorithms" : 
+                   interviewType === "system-design" ? "System Design" : "Behavioral",
           toughnessLevel: "medium",
           currentQuestionIndex: questionCount,
           candidateScore: currentScore,
@@ -157,7 +203,6 @@ export default function AIInterviewRoomPage() {
 
       buffer += decoder.decode(value, { stream: true });
 
-      // Process line-by-line
       let newlineIndex: number;
       while ((newlineIndex = buffer.indexOf("\n")) !== -1) {
         let line = buffer.slice(0, newlineIndex);
@@ -189,7 +234,6 @@ export default function AIInterviewRoomPage() {
   // Handle sending a message
   const handleSendMessage = useCallback(
     async (content: string) => {
-      // Add user message
       const userMessage: Message = {
         id: crypto.randomUUID(),
         role: "user",
@@ -198,9 +242,9 @@ export default function AIInterviewRoomPage() {
       };
       setMessages((prev) => [...prev, userMessage]);
       setIsLoading(true);
+      stopSpeaking();
 
       try {
-        // Build conversation history
         const conversationHistory = [
           ...messages.map((m) => ({ role: m.role, content: m.content })),
           { role: "user" as const, content },
@@ -218,10 +262,10 @@ export default function AIInterviewRoomPage() {
           setMessages((prev) => [...prev, assistantMessage]);
           setQuestionCount((prev) => prev + 1);
 
-          // Simulate AI speaking
+          // Speak the response
           if (isSpeaking) {
+            speak(response);
             setAiSpeaking(true);
-            setTimeout(() => setAiSpeaking(false), 3000);
           }
         }
       } catch (error) {
@@ -235,8 +279,13 @@ export default function AIInterviewRoomPage() {
         setIsLoading(false);
       }
     },
-    [messages, isSpeaking, toast]
+    [messages, isSpeaking, toast, speak, stopSpeaking]
   );
+
+  // Handle TTS state
+  useEffect(() => {
+    setAiSpeaking(ttsIsSpeaking);
+  }, [ttsIsSpeaking]);
 
   // Handle code analysis completion
   const handleCodeAnalysis = useCallback((analysis: any) => {
@@ -245,19 +294,24 @@ export default function AIInterviewRoomPage() {
     }
   }, []);
 
+  // Handle proctoring events
+  const handleProctoringEvent = useCallback((event: ProctoringEvent) => {
+    setProctoringEvents((prev) => [...prev, event]);
+  }, []);
+
   // End interview
   const handleEndInterview = useCallback(async () => {
     setStatus("completing");
+    stopSpeaking();
     
     if (timerRef.current) {
       clearInterval(timerRef.current);
     }
 
-    // Send closing message
     try {
       const closingMessage = await sendToAgent([
         ...messages.map((m) => ({ role: m.role, content: m.content })),
-        { role: "user", content: "The interview time is up. Please conclude the interview with a brief thank you and feedback." },
+        { role: "user", content: "The interview time is up. Please conclude the interview with a brief thank you and feedback summary." },
       ]);
 
       if (closingMessage) {
@@ -270,6 +324,10 @@ export default function AIInterviewRoomPage() {
             timestamp: new Date(),
           },
         ]);
+
+        if (isSpeaking) {
+          speak(closingMessage);
+        }
       }
     } catch (error) {
       console.error("Failed to get closing message:", error);
@@ -277,19 +335,12 @@ export default function AIInterviewRoomPage() {
 
     setStatus("completed");
     setShowCompletionDialog(true);
-  }, [messages]);
+  }, [messages, isSpeaking, speak, stopSpeaking]);
 
-  // Toggle listening (voice input)
+  // Toggle listening
   const toggleListening = useCallback(() => {
     setIsListening((prev) => !prev);
-    if (!isListening) {
-      toast({
-        title: "Voice input",
-        description: "Voice transcription will be available soon. Please type your response.",
-      });
-      setIsListening(false);
-    }
-  }, [isListening, toast]);
+  }, []);
 
   // Render preparing screen
   if (status === "preparing") {
@@ -307,7 +358,7 @@ export default function AIInterviewRoomPage() {
               </div>
               <h1 className="text-2xl font-bold mb-2">AI Interview Room</h1>
               <p className="text-muted-foreground">
-                You're about to start a {interviewType} interview with our AI interviewer.
+                You're about to start a {interviewType.replace("-", " ")} interview with our AI interviewer.
               </p>
             </div>
 
@@ -337,6 +388,16 @@ export default function AIInterviewRoomPage() {
                   </div>
                 </div>
               )}
+
+              {interviewType === "system-design" && (
+                <div className="flex items-center gap-3 p-3 rounded-lg bg-secondary/50">
+                  <Layout className="h-5 w-5 text-primary" />
+                  <div>
+                    <p className="font-medium">Whiteboard</p>
+                    <p className="text-sm text-muted-foreground">Draw diagrams for system design</p>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="p-4 rounded-lg bg-warning/10 border border-warning/30 mb-6">
@@ -345,7 +406,7 @@ export default function AIInterviewRoomPage() {
                 <div className="text-left">
                   <p className="text-sm font-medium text-warning">Important</p>
                   <p className="text-sm text-muted-foreground">
-                    Ensure your camera and microphone are working. The interview will be recorded for evaluation.
+                    Ensure your camera and microphone are working. The interview will be recorded and proctored.
                   </p>
                 </div>
               </div>
@@ -410,6 +471,10 @@ export default function AIInterviewRoomPage() {
                 <CheckCircle2 className="h-4 w-4 text-success" />
                 <span>Duration: {Math.floor(elapsedTime / 60)} minutes</span>
               </div>
+              <div className="flex items-center gap-2 text-sm">
+                <CheckCircle2 className="h-4 w-4 text-success" />
+                <span>Trust Score: {trustScore}%</span>
+              </div>
             </div>
 
             <p className="text-sm text-muted-foreground mb-6">
@@ -436,25 +501,52 @@ export default function AIInterviewRoomPage() {
           </div>
           <div>
             <h1 className="font-semibold text-sm">AI Interview</h1>
-            <p className="text-xs text-muted-foreground capitalize">{interviewType}</p>
+            <p className="text-xs text-muted-foreground capitalize">{interviewType.replace("-", " ")}</p>
           </div>
         </div>
 
         <div className="flex items-center gap-4">
+          {/* Workspace mode tabs */}
+          {interviewType !== "behavioral" && (
+            <Tabs value={workspaceMode} onValueChange={(v) => setWorkspaceMode(v as WorkspaceMode)}>
+              <TabsList className="h-8">
+                <TabsTrigger value="code" className="text-xs px-3" disabled={interviewType === "system-design"}>
+                  <Code2 className="h-3.5 w-3.5 mr-1" />
+                  Code
+                </TabsTrigger>
+                <TabsTrigger value="whiteboard" className="text-xs px-3">
+                  <Layout className="h-3.5 w-3.5 mr-1" />
+                  Whiteboard
+                </TabsTrigger>
+                <TabsTrigger value="conversation" className="text-xs px-3">
+                  <MessageSquare className="h-3.5 w-3.5 mr-1" />
+                  Focus
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
+          )}
+
           <Badge variant="outline" className="gap-1">
             <MessageSquare className="h-3 w-3" />
             Q{questionCount}
           </Badge>
 
-          <div className="flex items-center gap-2">
-            <Badge
-              variant={remainingTime < 300 ? "destructive" : "secondary"}
-              className="gap-1 tabular-nums"
-            >
-              <Clock className="h-3 w-3" />
-              {Math.floor(remainingTime / 60)}:{(remainingTime % 60).toString().padStart(2, "0")}
-            </Badge>
-          </div>
+          <Badge
+            variant={remainingTime < 300 ? "destructive" : "secondary"}
+            className="gap-1 tabular-nums"
+          >
+            <Clock className="h-3 w-3" />
+            {Math.floor(remainingTime / 60)}:{(remainingTime % 60).toString().padStart(2, "0")}
+          </Badge>
+
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 w-8 p-0"
+            onClick={toggleFullscreen}
+          >
+            {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+          </Button>
 
           <Button
             variant="outline"
@@ -470,19 +562,27 @@ export default function AIInterviewRoomPage() {
 
       {/* Main Content */}
       <div className="flex-1 grid grid-cols-12 gap-4 p-4 min-h-0">
-        {/* Left Panel - Video */}
-        <div className="col-span-3">
+        {/* Left Panel - Video + Proctoring */}
+        <div className="col-span-3 flex flex-col gap-4">
           <VideoPanel
             isRecording={status === "in-progress"}
             elapsedTime={elapsedTime}
             remainingTime={remainingTime}
             aiSpeaking={aiSpeaking}
-            className="h-full"
+            className="flex-1"
+          />
+          <ProctoringMonitor
+            isActive={status === "in-progress"}
+            onEvent={handleProctoringEvent}
+            onTrustScoreChange={setTrustScore}
           />
         </div>
 
         {/* Center Panel - Conversation */}
-        <div className="col-span-4">
+        <div className={cn(
+          "flex flex-col",
+          workspaceMode === "conversation" ? "col-span-9" : "col-span-4"
+        )}>
           <ConversationPanel
             messages={messages}
             isLoading={isLoading}
@@ -495,26 +595,39 @@ export default function AIInterviewRoomPage() {
           />
         </div>
 
-        {/* Right Panel - Code Editor (for technical) */}
-        <div className="col-span-5">
-          {interviewType === "technical" ? (
-            <CodeEditorPanel
-              problemStatement="Write a function to solve the problem described by the AI interviewer."
-              onAnalysisComplete={handleCodeAnalysis}
-              className="h-full"
-            />
-          ) : (
-            <GlassCard className="h-full flex items-center justify-center">
-              <div className="text-center">
-                <MessageSquare className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                <h3 className="font-semibold mb-2">Conversation Mode</h3>
-                <p className="text-sm text-muted-foreground max-w-xs">
-                  This is a {interviewType} interview. Focus on the conversation panel and provide thoughtful responses.
-                </p>
-              </div>
-            </GlassCard>
-          )}
-        </div>
+        {/* Right Panel - Workspace */}
+        {workspaceMode !== "conversation" && (
+          <div className="col-span-5">
+            <AnimatePresence mode="wait">
+              {workspaceMode === "code" && (
+                <motion.div
+                  key="code"
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  className="h-full"
+                >
+                  <CodeEditorPanel
+                    problemStatement="Write a function to solve the problem described by the AI interviewer."
+                    onAnalysisComplete={handleCodeAnalysis}
+                    className="h-full"
+                  />
+                </motion.div>
+              )}
+              {workspaceMode === "whiteboard" && (
+                <motion.div
+                  key="whiteboard"
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  className="h-full"
+                >
+                  <WhiteboardPanel className="h-full" />
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        )}
       </div>
 
       {/* Exit Confirmation Dialog */}

@@ -44,6 +44,8 @@ const MyApplicationsPage = lazy(() => import("./pages/candidate/MyApplicationsPa
 const CandidateProfilePage = lazy(() => import("./pages/candidate/CandidateProfilePage"));
 const InterviewRoomPage = lazy(() => import("./pages/candidate/InterviewRoomPage"));
 const AIInterviewRoomPage = lazy(() => import("./pages/candidate/AIInterviewRoomPage"));
+const MCQAssessmentPage = lazy(() => import("./pages/candidate/MCQAssessmentPage"));
+const CodingChallengePage = lazy(() => import("./pages/candidate/CodingChallengePage"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -157,6 +159,22 @@ const App = () => (
                     element={
                       <ProtectedRoute allowedRoles={["candidate"]}>
                         <AIInterviewRoomPage />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/candidate/assessment/mcq"
+                    element={
+                      <ProtectedRoute allowedRoles={["candidate"]}>
+                        <MCQAssessmentPage />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/candidate/assessment/coding"
+                    element={
+                      <ProtectedRoute allowedRoles={["candidate"]}>
+                        <CodingChallengePage />
                       </ProtectedRoute>
                     }
                   />
