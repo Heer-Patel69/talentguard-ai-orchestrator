@@ -79,11 +79,13 @@ export default function InterviewRoomPage() {
 
   const fetchPendingInterviews = async () => {
     try {
+      // Fetch applications that are not rejected/completed - candidates can proceed with interviews
       const { data: applications, error } = await supabase
         .from("applications")
         .select(`
           id,
           current_round,
+          status,
           job_id,
           job:jobs(
             id,
@@ -93,7 +95,7 @@ export default function InterviewRoomPage() {
           )
         `)
         .eq("candidate_id", user!.id)
-        .eq("status", "interviewing");
+        .in("status", ["applied", "screening", "interviewing"]);
 
       if (error) throw error;
 
@@ -102,21 +104,26 @@ export default function InterviewRoomPage() {
       
       for (const app of applications || []) {
         const jobData = app.job as any;
+        if (!jobData) continue;
+
+        // Get the next round for this application
+        const nextRound = (app.current_round || 0) + 1;
+        
         const { data: rounds } = await supabase
           .from("job_rounds")
           .select("*")
-          .eq("job_id", jobData?.id)
-          .eq("round_number", app.current_round + 1)
+          .eq("job_id", jobData.id)
+          .eq("round_number", nextRound)
           .maybeSingle();
 
-        if (rounds && jobData) {
+        if (rounds) {
           interviews.push({
             application_id: app.id,
             job_title: jobData.title,
-            job_field: jobData.field,
-            round_number: app.current_round + 1,
+            job_field: jobData.field || "General",
+            round_number: nextRound,
             round_type: rounds.round_type,
-            duration_minutes: rounds.duration_minutes,
+            duration_minutes: rounds.duration_minutes || 30,
           });
         }
       }
