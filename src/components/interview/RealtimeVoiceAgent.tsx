@@ -59,6 +59,7 @@ export function RealtimeVoiceAgent({
   // Reconnection tracking
   const reconnectAttemptRef = useRef(0);
   const maxReconnectAttempts = 3;
+  const intentionalDisconnectRef = useRef(false);
 
   const conversation = useConversation({
     onConnect: () => {
@@ -74,8 +75,33 @@ export function RealtimeVoiceAgent({
       console.log("Disconnected from ElevenLabs agent");
       onConnectionChange?.(false);
       
-      // Only show disconnect toast if it wasn't intentional (we didn't call endSession manually)
-      // If still expecting connection, this might be a glitch - don't alarm user
+      // Check if this was an intentional disconnect or unexpected
+      if (!intentionalDisconnectRef.current) {
+        // Unexpected disconnect - attempt to reconnect
+        if (reconnectAttemptRef.current < maxReconnectAttempts) {
+          reconnectAttemptRef.current++;
+          console.log(`🔄 Unexpected disconnect. Attempting reconnection ${reconnectAttemptRef.current}/${maxReconnectAttempts}`);
+          
+          toast({
+            title: "Reconnecting...",
+            description: `Connection lost. Attempt ${reconnectAttemptRef.current}/${maxReconnectAttempts}`,
+          });
+          
+          // Use exponential backoff for reconnection
+          setTimeout(() => {
+            startConversation();
+          }, 1000 * reconnectAttemptRef.current);
+        } else {
+          toast({
+            title: "Connection Lost",
+            description: "Unable to maintain connection to voice server. Please restart the interview.",
+            variant: "destructive",
+          });
+        }
+      }
+      
+      // Reset the flag after handling
+      intentionalDisconnectRef.current = false;
     },
     onMessage: (message: any) => {
       console.log("Agent message:", message);
@@ -297,6 +323,9 @@ export function RealtimeVoiceAgent({
 
   const stopConversation = useCallback(async () => {
     try {
+      // Mark this as an intentional disconnect
+      intentionalDisconnectRef.current = true;
+      
       // Immediately clear state to show disconnected status
       setMessages([]);
       reconnectAttemptRef.current = maxReconnectAttempts; // Prevent auto-reconnect

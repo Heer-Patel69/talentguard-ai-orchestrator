@@ -58,6 +58,35 @@ export function ContinuousVoicePanel({
   const recognitionRef = useRef<any>(null);
   const silenceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastTranscriptRef = useRef("");
+  
+  // Refs for mutable state to avoid stale closures
+  const isContinuousModeRef = useRef(false);
+  const isLoadingRef = useRef(false);
+  const aiSpeakingRef = useRef(false);
+  const isListeningRef = useRef(false);
+  const onSendMessageRef = useRef(onSendMessage);
+  const isRestartingRef = useRef(false);
+
+  // Sync refs with state to avoid stale closures
+  useEffect(() => {
+    isContinuousModeRef.current = isContinuousMode;
+  }, [isContinuousMode]);
+
+  useEffect(() => {
+    isLoadingRef.current = isLoading;
+  }, [isLoading]);
+
+  useEffect(() => {
+    aiSpeakingRef.current = aiSpeaking;
+  }, [aiSpeaking]);
+
+  useEffect(() => {
+    isListeningRef.current = isListening;
+  }, [isListening]);
+
+  useEffect(() => {
+    onSendMessageRef.current = onSendMessage;
+  }, [onSendMessage]);
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -66,7 +95,7 @@ export function ContinuousVoicePanel({
     }
   }, [messages, interimTranscript]);
 
-  // Initialize speech recognition
+  // Initialize speech recognition - ONE TIME ONLY
   useEffect(() => {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     
@@ -112,8 +141,8 @@ export function ContinuousVoicePanel({
         }
         
         silenceTimeoutRef.current = setTimeout(() => {
-          if (lastTranscriptRef.current && !isLoading) {
-            onSendMessage(lastTranscriptRef.current);
+          if (lastTranscriptRef.current && !isLoadingRef.current) {
+            onSendMessageRef.current(lastTranscriptRef.current);
             lastTranscriptRef.current = "";
           }
         }, 800); // 800ms silence = send message
@@ -131,27 +160,39 @@ export function ContinuousVoicePanel({
         setIsListening(false);
         setIsContinuousMode(false);
       } else if (event.error !== "no-speech" && event.error !== "aborted") {
-        // Restart on other errors
-        if (isContinuousMode) {
+        // Restart on other errors with delay and guard
+        if (isContinuousModeRef.current && !isRestartingRef.current) {
+          isRestartingRef.current = true;
           setTimeout(() => {
-            try {
-              recognition.start();
-            } catch (e) {
-              console.error("Failed to restart recognition:", e);
+            // Verify instance is still current before restarting
+            if (recognitionRef.current === recognition && isContinuousModeRef.current) {
+              try {
+                recognition.start();
+              } catch (e) {
+                console.error("Failed to restart recognition:", e);
+              }
             }
-          }, 100);
+            isRestartingRef.current = false;
+          }, 250);
         }
       }
     };
 
     recognition.onend = () => {
-      // Auto-restart if still in continuous mode
-      if (isContinuousMode && !aiSpeaking) {
-        try {
-          recognition.start();
-        } catch (e) {
-          console.error("Failed to restart recognition:", e);
-        }
+      // Auto-restart if still in continuous mode and not while AI is speaking
+      if (isContinuousModeRef.current && !aiSpeakingRef.current && !isRestartingRef.current) {
+        isRestartingRef.current = true;
+        setTimeout(() => {
+          // Verify instance is still current before restarting
+          if (recognitionRef.current === recognition && isContinuousModeRef.current && !aiSpeakingRef.current) {
+            try {
+              recognition.start();
+            } catch (e) {
+              console.error("Failed to restart recognition:", e);
+            }
+          }
+          isRestartingRef.current = false;
+        }, 250);
       } else {
         setIsListening(false);
       }
@@ -165,7 +206,7 @@ export function ContinuousVoicePanel({
       }
       recognition.abort();
     };
-  }, [isContinuousMode, isLoading, onSendMessage, toast, aiSpeaking]);
+  }, []); // Empty dependency array - initialize once only
 
   // Pause listening while AI is speaking
   useEffect(() => {

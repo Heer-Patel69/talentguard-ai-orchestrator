@@ -23,7 +23,32 @@ export function VoiceRecognition({
   const [error, setError] = useState<string | null>(null);
   const [isSupported, setIsSupported] = useState(true);
   const recognitionRef = useRef<any>(null);
+  
+  // Refs for callbacks and state to avoid stale closures
+  const onTranscriptRef = useRef(onTranscript);
+  const onListeningChangeRef = useRef(onListeningChange);
+  const isListeningRef = useRef(false);
+  const isEnabledRef = useRef(isEnabled);
+  const isRestartingRef = useRef(false);
 
+  // Sync refs with props/state
+  useEffect(() => {
+    onTranscriptRef.current = onTranscript;
+  }, [onTranscript]);
+
+  useEffect(() => {
+    onListeningChangeRef.current = onListeningChange;
+  }, [onListeningChange]);
+
+  useEffect(() => {
+    isListeningRef.current = isListening;
+  }, [isListening]);
+
+  useEffect(() => {
+    isEnabledRef.current = isEnabled;
+  }, [isEnabled]);
+
+  // Initialize speech recognition - ONE TIME ONLY
   useEffect(() => {
     // Check for browser support
     const SpeechRecognitionAPI = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -52,11 +77,11 @@ export function VoiceRecognition({
       }
 
       if (final) {
-        onTranscript(final, true);
+        onTranscriptRef.current(final, true);
         setInterimTranscript("");
       } else {
         setInterimTranscript(interim);
-        onTranscript(interim, false);
+        onTranscriptRef.current(interim, false);
       }
     };
 
@@ -70,17 +95,24 @@ export function VoiceRecognition({
         setError(`Recognition error: ${event.error}`);
       }
       setIsListening(false);
-      onListeningChange?.(false);
+      onListeningChangeRef.current?.(false);
     };
 
     recognition.onend = () => {
       // Restart if still supposed to be listening
-      if (isListening && isEnabled) {
-        try {
-          recognition.start();
-        } catch (e) {
-          console.error("Failed to restart recognition:", e);
-        }
+      if (isListeningRef.current && isEnabledRef.current && !isRestartingRef.current) {
+        isRestartingRef.current = true;
+        setTimeout(() => {
+          // Verify instance is still current before restarting
+          if (recognitionRef.current === recognition && isListeningRef.current && isEnabledRef.current) {
+            try {
+              recognition.start();
+            } catch (e) {
+              console.error("Failed to restart recognition:", e);
+            }
+          }
+          isRestartingRef.current = false;
+        }, 250);
       }
     };
 
@@ -89,7 +121,7 @@ export function VoiceRecognition({
     return () => {
       recognition.stop();
     };
-  }, [onTranscript, onListeningChange, isEnabled]);
+  }, []); // Empty dependency array - initialize once only
 
   const toggleListening = useCallback(() => {
     if (!recognitionRef.current || !isSupported) return;
