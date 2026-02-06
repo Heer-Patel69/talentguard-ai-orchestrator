@@ -1,0 +1,382 @@
+import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
+import { motion } from "framer-motion";
+import { GlassCard } from "@/components/ui/glass-card";
+import { Button } from "@/components/ui/button";
+import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
+import {
+  ShieldCheck,
+  ShieldAlert,
+  Shield,
+  FileText,
+  Clock,
+  CheckCircle,
+  XCircle,
+  Star,
+  Briefcase,
+  ArrowRight,
+  Calendar,
+  Code,
+  Brain,
+  TrendingUp,
+  Zap,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+
+interface CandidateProfile {
+  verification_status: string;
+  github_url: string | null;
+  linkedin_url: string | null;
+}
+
+interface Application {
+  id: string;
+  status: string;
+  current_round: number;
+  job: {
+    title: string;
+    field: string;
+  } | null;
+}
+
+interface Job {
+  id: string;
+  title: string;
+  field: string;
+  experience_level: string;
+  salary_min: number | null;
+  salary_max: number | null;
+  salary_currency: string;
+  toughness_level: string;
+}
+
+export default function CandidateOverviewPage() {
+  const { user } = useAuth();
+  const [profile, setProfile] = useState<CandidateProfile | null>(null);
+  const [applications, setApplications] = useState<Application[]>([]);
+  const [recommendedJobs, setRecommendedJobs] = useState<Job[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    if (user) {
+      fetchData();
+    }
+  }, [user]);
+
+  const fetchData = async () => {
+    try {
+      // Fetch candidate profile
+      const { data: profileData } = await supabase
+        .from("candidate_profiles")
+        .select("*")
+        .eq("user_id", user!.id)
+        .maybeSingle();
+
+      setProfile(profileData);
+
+      // Fetch applications
+      const { data: applicationsData } = await supabase
+        .from("applications")
+        .select(`
+          id,
+          status,
+          current_round,
+          job:jobs(
+            title,
+            field,
+            interviewer_id
+          )
+        `)
+        .eq("candidate_id", user!.id)
+        .order("applied_at", { ascending: false });
+
+      setApplications(applicationsData || []);
+
+      // Fetch recommended jobs (active jobs)
+      const { data: jobsData } = await supabase
+        .from("jobs")
+        .select("*")
+        .eq("status", "active")
+        .limit(4);
+
+      setRecommendedJobs(jobsData || []);
+    } catch (error) {
+      console.error("Error fetching data:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const getVerificationBadge = () => {
+    if (!profile) return null;
+
+    const badges = {
+      verified: {
+        icon: ShieldCheck,
+        label: "Verified",
+        color: "text-success bg-success/10 border-success/30",
+      },
+      pending: {
+        icon: Shield,
+        label: "Pending Verification",
+        color: "text-warning bg-warning/10 border-warning/30",
+      },
+      manual_review: {
+        icon: ShieldAlert,
+        label: "Under Review",
+        color: "text-info bg-info/10 border-info/30",
+      },
+      rejected: {
+        icon: ShieldAlert,
+        label: "Verification Failed",
+        color: "text-danger bg-danger/10 border-danger/30",
+      },
+    };
+
+    const badge = badges[profile.verification_status as keyof typeof badges] || badges.pending;
+    const Icon = badge.icon;
+
+    return (
+      <div className={cn("flex items-center gap-2 rounded-full border px-3 py-1", badge.color)}>
+        <Icon className="h-4 w-4" />
+        <span className="text-sm font-medium">{badge.label}</span>
+      </div>
+    );
+  };
+
+  const applicationStats = {
+    total: applications.length,
+    inProgress: applications.filter(a => ["applied", "interviewing"].includes(a.status)).length,
+    completed: applications.filter(a => a.status === "completed").length,
+    shortlisted: applications.filter(a => a.status === "shortlisted").length,
+    rejected: applications.filter(a => a.status === "rejected").length,
+  };
+
+  const formatSalary = (min: number | null, max: number | null, currency: string) => {
+    if (!min && !max) return "Not disclosed";
+    const formatter = new Intl.NumberFormat("en-IN", {
+      style: "currency",
+      currency: currency || "INR",
+      maximumFractionDigits: 0,
+    });
+    if (min && max) return `${formatter.format(min)} - ${formatter.format(max)}`;
+    if (min) return `${formatter.format(min)}+`;
+    return `Up to ${formatter.format(max!)}`;
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-success border-t-transparent" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold">Welcome back!</h1>
+          <p className="text-muted-foreground">
+            Here's your job search overview
+          </p>
+        </div>
+        {getVerificationBadge()}
+      </div>
+
+      {/* Verification Alert */}
+      {profile?.verification_status === "pending" && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+        >
+          <GlassCard className="border-warning/30 bg-warning/5">
+            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+              <div className="flex items-start gap-3">
+                <Shield className="h-5 w-5 text-warning mt-0.5" />
+                <div>
+                  <h3 className="font-semibold text-warning">Complete Your Verification</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Verify your identity to apply for jobs and access all features.
+                  </p>
+                </div>
+              </div>
+              <Button variant="outline" className="border-warning text-warning hover:bg-warning/10" asChild>
+                <Link to="/verify-face">
+                  Complete Verification
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </Link>
+              </Button>
+            </div>
+          </GlassCard>
+        </motion.div>
+      )}
+
+      {/* Stats */}
+      <div className="grid gap-4 md:grid-cols-5">
+        {[
+          { label: "Total Applications", value: applicationStats.total, icon: FileText, color: "text-primary" },
+          { label: "In Progress", value: applicationStats.inProgress, icon: Clock, color: "text-info" },
+          { label: "Completed", value: applicationStats.completed, icon: CheckCircle, color: "text-success" },
+          { label: "Shortlisted", value: applicationStats.shortlisted, icon: Star, color: "text-warning" },
+          { label: "Rejected", value: applicationStats.rejected, icon: XCircle, color: "text-danger" },
+        ].map((stat, index) => (
+          <motion.div
+            key={stat.label}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: index * 0.05 }}
+          >
+            <GlassCard className="text-center">
+              <stat.icon className={cn("mx-auto h-6 w-6 mb-2", stat.color)} />
+              <div className="text-2xl font-bold">{stat.value}</div>
+              <div className="text-xs text-muted-foreground">{stat.label}</div>
+            </GlassCard>
+          </motion.div>
+        ))}
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        {/* Upcoming Interviews */}
+        <GlassCard>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold flex items-center gap-2">
+              <Calendar className="h-5 w-5 text-success" />
+              Upcoming Interviews
+            </h2>
+            <Button variant="ghost" size="sm" asChild>
+              <Link to="/candidate/applications">View All</Link>
+            </Button>
+          </div>
+
+          {applications.filter(a => a.status === "interviewing").length === 0 ? (
+            <div className="py-8 text-center">
+              <Calendar className="mx-auto h-10 w-10 text-muted-foreground" />
+              <p className="mt-2 text-sm text-muted-foreground">No upcoming interviews</p>
+              <Button variant="outline" size="sm" className="mt-3" asChild>
+                <Link to="/candidate/jobs">Browse Jobs</Link>
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {applications
+                .filter(a => a.status === "interviewing")
+                .slice(0, 3)
+                .map((app) => (
+                  <div
+                    key={app.id}
+                    className="flex items-center justify-between rounded-lg bg-secondary/50 p-3"
+                  >
+                    <div>
+                      <p className="font-medium">{app.job?.title}</p>
+                      <p className="text-sm text-muted-foreground">Round {app.current_round}</p>
+                    </div>
+                    <Button size="sm" className="bg-success hover:bg-success/90" asChild>
+                      <Link to="/candidate/interview">
+                        Start
+                        <ArrowRight className="ml-1 h-3 w-3" />
+                      </Link>
+                    </Button>
+                  </div>
+                ))}
+            </div>
+          )}
+        </GlassCard>
+
+        {/* Skill Profile */}
+        <GlassCard>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold flex items-center gap-2">
+              <Zap className="h-5 w-5 text-success" />
+              Your Skills
+            </h2>
+            <Button variant="ghost" size="sm" asChild>
+              <Link to="/candidate/profile">Edit Profile</Link>
+            </Button>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            {["JavaScript", "React", "TypeScript", "Node.js", "Python", "SQL", "Git"].map((skill) => (
+              <span
+                key={skill}
+                className="rounded-full bg-success/10 px-3 py-1 text-sm font-medium text-success"
+              >
+                {skill}
+              </span>
+            ))}
+          </div>
+
+          <div className="mt-4 flex items-center gap-4 text-sm text-muted-foreground">
+            {profile?.github_url && (
+              <a href={profile.github_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 hover:text-foreground">
+                <Code className="h-4 w-4" />
+                GitHub
+              </a>
+            )}
+            {profile?.linkedin_url && (
+              <a href={profile.linkedin_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 hover:text-foreground">
+                <TrendingUp className="h-4 w-4" />
+                LinkedIn
+              </a>
+            )}
+          </div>
+        </GlassCard>
+      </div>
+
+      {/* Recommended Jobs */}
+      <div>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold flex items-center gap-2">
+            <Briefcase className="h-5 w-5 text-success" />
+            Recommended for You
+          </h2>
+          <Button variant="ghost" size="sm" asChild>
+            <Link to="/candidate/jobs">
+              View All Jobs
+              <ArrowRight className="ml-1 h-4 w-4" />
+            </Link>
+          </Button>
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          {recommendedJobs.map((job, index) => (
+            <motion.div
+              key={job.id}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: index * 0.05 }}
+            >
+              <GlassCard hover className="h-full">
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+                    <Briefcase className="h-5 w-5 text-primary" />
+                  </div>
+                  <span className={cn(
+                    "rounded-full px-2 py-0.5 text-xs font-medium capitalize",
+                    job.toughness_level === "easy" && "bg-success/10 text-success",
+                    job.toughness_level === "medium" && "bg-warning/10 text-warning",
+                    job.toughness_level === "hard" && "bg-danger/10 text-danger",
+                    job.toughness_level === "expert" && "bg-purple-500/10 text-purple-500"
+                  )}>
+                    {job.toughness_level}
+                  </span>
+                </div>
+                <h3 className="font-semibold line-clamp-1">{job.title}</h3>
+                <p className="text-sm text-muted-foreground mt-1">{job.field}</p>
+                <p className="text-sm text-muted-foreground capitalize">{job.experience_level}</p>
+                <p className="text-sm font-medium text-success mt-2">
+                  {formatSalary(job.salary_min, job.salary_max, job.salary_currency)}
+                </p>
+                <Button variant="outline" size="sm" className="w-full mt-3" asChild>
+                  <Link to={`/candidate/jobs/${job.id}`}>View Details</Link>
+                </Button>
+              </GlassCard>
+            </motion.div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
