@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   VideoPanel,
-  ConversationPanel,
+  ContinuousVoicePanel,
   CodeEditorPanel,
   WhiteboardPanel,
   ProctoringMonitor,
@@ -648,14 +648,12 @@ export default function AIInterviewRoomPage() {
           "flex flex-col",
           workspaceMode === "conversation" ? "col-span-9" : "col-span-4"
         )}>
-          <ConversationPanel
+          <ContinuousVoicePanel
             messages={messages}
             isLoading={isLoading}
-            isListening={isListening}
-            isSpeaking={isSpeaking}
             onSendMessage={handleSendMessage}
-            onToggleListening={toggleListening}
-            onToggleSpeaking={() => setIsSpeaking(!isSpeaking)}
+            aiSpeaking={aiSpeaking}
+            autoListen={true}
             className="h-full"
           />
         </div>
