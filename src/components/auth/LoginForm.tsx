@@ -28,7 +28,7 @@ type FormData = z.infer<typeof formSchema>;
 
 export function LoginForm() {
   const [isLoading, setIsLoading] = useState(false);
-  const { signIn, refreshRole } = useAuth();
+  const { signIn } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
 
@@ -43,7 +43,7 @@ export function LoginForm() {
   const onSubmit = async (data: FormData) => {
     setIsLoading(true);
     try {
-      const { error } = await signIn(data.email, data.password);
+      const { error, role } = await signIn(data.email, data.password);
 
       if (error) {
         if (error.message.includes("Email not confirmed")) {
@@ -59,14 +59,17 @@ export function LoginForm() {
         return;
       }
 
-      // Don't call refreshRole() - onAuthStateChange already handles it
-      // Navigate immediately, ProtectedRoute will handle role-based redirection
       toast({
         title: "Welcome back!",
         description: "You have been signed in successfully.",
       });
 
-      navigate("/dashboard");
+      // Navigate immediately based on role returned from signIn
+      if (role === "candidate") {
+        navigate("/candidate");
+      } else {
+        navigate("/dashboard");
+      }
     } catch (error: any) {
       console.error("Login error:", error);
       toast({

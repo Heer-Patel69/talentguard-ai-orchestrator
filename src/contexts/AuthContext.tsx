@@ -1,7 +1,6 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, ReactNode, useCallback } from "react";
 import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
-import { useNavigate } from "react-router-dom";
 
 type AppRole = "interviewer" | "candidate";
 
@@ -11,7 +10,7 @@ interface AuthContextType {
   role: AppRole | null;
   isLoading: boolean;
   signUp: (email: string, password: string) => Promise<{ error: Error | null }>;
-  signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
+  signIn: (email: string, password: string) => Promise<{ error: Error | null; role?: AppRole | null }>;
   signOut: () => Promise<void>;
   refreshRole: () => Promise<void>;
 }
@@ -24,7 +23,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [role, setRole] = useState<AppRole | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  const fetchUserRole = async (userId: string) => {
+  const fetchUserRole = useCallback(async (userId: string): Promise<AppRole | null> => {
     try {
       const { data, error } = await supabase
         .from("user_roles")
@@ -41,41 +40,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.error("Error fetching role:", err);
       return null;
     }
-  };
+  }, []);
 
-  const refreshRole = async () => {
+  const refreshRole = useCallback(async () => {
     if (user) {
       const userRole = await fetchUserRole(user.id);
       setRole(userRole);
     }
-  };
+  }, [user, fetchUserRole]);
 
   useEffect(() => {
     let mounted = true;
 
-    // Set up auth state listener FIRST
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, currentSession) => {
-        if (!mounted) return;
-        
-        setSession(currentSession);
-        setUser(currentSession?.user ?? null);
-
-        if (currentSession?.user) {
-          // Fetch role immediately without setTimeout for faster response
-          const userRole = await fetchUserRole(currentSession.user.id);
-          if (mounted) {
-            setRole(userRole);
-            setIsLoading(false);
-          }
-        } else {
-          setRole(null);
-          setIsLoading(false);
-        }
-      }
-    );
-
-    // THEN check for existing session
+    // Check for existing session first (synchronous check)
     supabase.auth.getSession().then(async ({ data: { session: existingSession } }) => {
       if (!mounted) return;
       
@@ -89,11 +66,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (mounted) setIsLoading(false);
     });
 
+    // Set up auth state listener for changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event, currentSession) => {
+        if (!mounted) return;
+        
+        // Update session and user synchronously - don't block on role fetch
+        setSession(currentSession);
+        setUser(currentSession?.user ?? null);
+
+        if (!currentSession?.user) {
+          setRole(null);
+          setIsLoading(false);
+          return;
+        }
+
+        // For sign-in events, role is fetched in signIn function for faster response
+        // Only fetch role here for other events (token refresh, etc.)
+        if (event !== 'SIGNED_IN') {
+          fetchUserRole(currentSession.user.id).then((userRole) => {
+            if (mounted) {
+              setRole(userRole);
+              setIsLoading(false);
+            }
+          });
+        } else {
+          // SIGNED_IN event - role will be set by signIn function
+          setIsLoading(false);
+        }
+      }
+    );
+
     return () => {
       mounted = false;
       subscription.unsubscribe();
     };
-  }, []);
+  }, [fetchUserRole]);
 
   const signUp = async (email: string, password: string) => {
     const { error } = await supabase.auth.signUp({
@@ -107,11 +115,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({
+    const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
-    return { error: error as Error | null };
+    
+    if (error) {
+      return { error: error as Error | null };
+    }
+
+    // Fetch role immediately and return it for instant navigation
+    if (data.user) {
+      const userRole = await fetchUserRole(data.user.id);
+      setRole(userRole);
+      return { error: null, role: userRole };
+    }
+
+    return { error: null };
   };
 
   const signOut = async () => {
