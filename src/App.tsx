@@ -30,6 +30,7 @@ import AnalyticsPage from "./pages/dashboard/AnalyticsPage";
 import SettingsPage from "./pages/dashboard/SettingsPage";
 import InterviewerCandidateReportPage from "./pages/dashboard/CandidateReportPage";
 import FairnessDashboardPage from "./pages/dashboard/FairnessDashboardPage";
+import CommandCenterPage from "./pages/dashboard/CommandCenterPage";
 
 // Candidate Dashboard Pages
 import CandidateOverviewPage from "./pages/candidate/CandidateOverviewPage";
@@ -204,6 +205,16 @@ const App = () => (
                   <ProtectedRoute allowedRoles={["interviewer"]}>
                     <DashboardLayout>
                       <FairnessDashboardPage />
+                    </DashboardLayout>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/dashboard/command-center"
+                element={
+                  <ProtectedRoute allowedRoles={["interviewer"]}>
+                    <DashboardLayout>
+                      <CommandCenterPage />
                     </DashboardLayout>
                   </ProtectedRoute>
                 }
