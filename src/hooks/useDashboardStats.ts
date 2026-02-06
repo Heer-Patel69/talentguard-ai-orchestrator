@@ -304,3 +304,131 @@ function getTimeAgo(date: Date): string {
   if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
   return `${Math.floor(seconds / 86400)}d ago`;
 }
+
+export interface FieldDistribution {
+  field: string;
+  candidates: number;
+}
+
+export interface WeeklyActivity {
+  day: string;
+  interviews: number;
+  hires: number;
+}
+
+export function useFieldDistribution() {
+  const { user } = useAuth();
+
+  return useQuery({
+    queryKey: ["field-distribution", user?.id],
+    queryFn: async (): Promise<FieldDistribution[]> => {
+      if (!user) throw new Error("Not authenticated");
+
+      // Get user's jobs with their fields
+      const { data: userJobs } = await supabase
+        .from("jobs")
+        .select("id, field")
+        .eq("interviewer_id", user.id);
+
+      const jobIds = (userJobs || []).map(j => j.id);
+      const jobFields: Record<string, string> = {};
+      (userJobs || []).forEach(j => { 
+        jobFields[j.id] = j.field || "Other"; 
+      });
+
+      if (jobIds.length === 0) {
+        return [
+          { field: "Frontend", candidates: 0 },
+          { field: "Backend", candidates: 0 },
+          { field: "Full Stack", candidates: 0 },
+        ];
+      }
+
+      // Get applications count per job
+      const { data: applications } = await supabase
+        .from("applications")
+        .select("job_id")
+        .in("job_id", jobIds);
+
+      // Count by field
+      const fieldCounts: Record<string, number> = {};
+      (applications || []).forEach(app => {
+        const field = jobFields[app.job_id] || "Other";
+        fieldCounts[field] = (fieldCounts[field] || 0) + 1;
+      });
+
+      // Convert to array and sort
+      return Object.entries(fieldCounts)
+        .map(([field, candidates]) => ({ field, candidates }))
+        .sort((a, b) => b.candidates - a.candidates)
+        .slice(0, 6);
+    },
+    enabled: !!user,
+    staleTime: 60000,
+  });
+}
+
+export function useWeeklyActivity() {
+  const { user } = useAuth();
+
+  return useQuery({
+    queryKey: ["weekly-activity", user?.id],
+    queryFn: async (): Promise<WeeklyActivity[]> => {
+      if (!user) throw new Error("Not authenticated");
+
+      // Get user's jobs first
+      const { data: userJobs } = await supabase
+        .from("jobs")
+        .select("id")
+        .eq("interviewer_id", user.id);
+
+      const jobIds = (userJobs || []).map(j => j.id);
+
+      // Calculate date range for last 7 days
+      const now = new Date();
+      const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+      if (jobIds.length === 0) {
+        return getDaysOfWeek().map(day => ({ day, interviews: 0, hires: 0 }));
+      }
+
+      // Get applications from last 7 days
+      const { data: applications } = await supabase
+        .from("applications")
+        .select("status, updated_at")
+        .in("job_id", jobIds)
+        .gte("updated_at", weekAgo.toISOString());
+
+      // Group by day of week
+      const dayData: Record<string, { interviews: number; hires: number }> = {};
+      getDaysOfWeek().forEach(day => {
+        dayData[day] = { interviews: 0, hires: 0 };
+      });
+
+      (applications || []).forEach(app => {
+        const date = new Date(app.updated_at);
+        const day = date.toLocaleDateString("en-US", { weekday: "short" });
+        if (dayData[day]) {
+          if (app.status === "interviewing" || app.status === "shortlisted" || app.status === "hired") {
+            dayData[day].interviews++;
+          }
+          if (app.status === "hired") {
+            dayData[day].hires++;
+          }
+        }
+      });
+
+      return getDaysOfWeek().map(day => ({
+        day,
+        interviews: dayData[day]?.interviews || 0,
+        hires: dayData[day]?.hires || 0,
+      }));
+    },
+    enabled: !!user,
+    staleTime: 60000,
+  });
+}
+
+function getDaysOfWeek(): string[] {
+  return ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+}

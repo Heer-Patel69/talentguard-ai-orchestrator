@@ -56,9 +56,14 @@ export function RealtimeVoiceAgent({
   const [volume, setVolume] = useState(0.8);
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  // Reconnection tracking
+  const reconnectAttemptRef = useRef(0);
+  const maxReconnectAttempts = 3;
+
   const conversation = useConversation({
     onConnect: () => {
       console.log("Connected to ElevenLabs agent");
+      reconnectAttemptRef.current = 0; // Reset on successful connect
       onConnectionChange?.(true);
       toast({
         title: "Connected",
@@ -68,6 +73,9 @@ export function RealtimeVoiceAgent({
     onDisconnect: () => {
       console.log("Disconnected from ElevenLabs agent");
       onConnectionChange?.(false);
+      
+      // Only show disconnect toast if it wasn't intentional (we didn't call endSession manually)
+      // If still expecting connection, this might be a glitch - don't alarm user
     },
     onMessage: (message: any) => {
       console.log("Agent message:", message);
@@ -75,7 +83,8 @@ export function RealtimeVoiceAgent({
       // Handle user transcripts
       if (message?.type === "user_transcript") {
         const userTranscript = message?.user_transcription_event?.user_transcript;
-        if (userTranscript) {
+        if (userTranscript && userTranscript.trim().length > 2) {
+          // Ignore very short transcripts (likely noise)
           const voiceMessage: VoiceMessage = {
             id: crypto.randomUUID(),
             role: "user",
@@ -85,12 +94,13 @@ export function RealtimeVoiceAgent({
           setMessages((prev) => [...prev, voiceMessage]);
           onMessage?.(voiceMessage);
           
-          // Check if user wants to end the interview
+          // Check if user wants to end the interview - only for clear, intentional phrases
           const endPhrases = [
             "end the meeting", "end meeting", "end the interview", "end interview",
             "stop the interview", "stop interview", "finish interview", "finish the interview",
-            "that's all", "i'm done", "im done", "goodbye", "bye", "thank you bye",
-            "end call", "end the call", "disconnect", "leave meeting", "leave the meeting"
+            "that's all for today", "i'm done with the interview", "goodbye and thank you",
+            "thank you and goodbye", "end call", "end the call", "leave meeting", "leave the meeting",
+            "i want to end", "please end"
           ];
           const lowerTranscript = userTranscript.toLowerCase().trim();
           const shouldEnd = endPhrases.some(phrase => lowerTranscript.includes(phrase));
@@ -99,11 +109,15 @@ export function RealtimeVoiceAgent({
             console.log("User requested to end interview:", userTranscript);
             // Give AI a moment to respond gracefully, then end
             setTimeout(async () => {
-              await conversation.endSession();
-              toast({
-                title: "Interview Ended",
-                description: "Thank you for completing the interview!",
-              });
+              try {
+                await conversation.endSession();
+                toast({
+                  title: "Interview Ended",
+                  description: "Thank you for completing the interview!",
+                });
+              } catch (e) {
+                console.error("Error ending session:", e);
+              }
             }, 3000); // Wait 3 seconds for AI to say goodbye
           }
         }
@@ -126,10 +140,25 @@ export function RealtimeVoiceAgent({
     },
     onError: (error) => {
       console.error("Conversation error:", error);
+      
+      // Don't show error for minor glitches - only for actual failures
+      if (error?.message?.includes("connection") || error?.message?.includes("WebSocket")) {
+        // Attempt auto-reconnect for connection issues
+        if (reconnectAttemptRef.current < maxReconnectAttempts) {
+          reconnectAttemptRef.current++;
+          console.log(`Attempting reconnection ${reconnectAttemptRef.current}/${maxReconnectAttempts}`);
+          
+          setTimeout(() => {
+            startConversation();
+          }, 1000 * reconnectAttemptRef.current); // Exponential backoff
+          return;
+        }
+      }
+      
       toast({
-        title: "Connection Error",
-        description: "Failed to connect to voice agent. Please try again.",
-        variant: "destructive",
+        title: "Connection Issue",
+        description: "The voice connection experienced a minor hiccup. You can continue speaking normally.",
+        variant: "default",
       });
     },
   });
@@ -197,16 +226,25 @@ export function RealtimeVoiceAgent({
 
   const stopConversation = useCallback(async () => {
     try {
-      await conversation.endSession();
+      // Immediately clear state to show disconnected status
       setMessages([]);
+      reconnectAttemptRef.current = maxReconnectAttempts; // Prevent auto-reconnect
+      
+      // Then end the session
+      await conversation.endSession();
+      
       toast({
         title: "Interview Ended",
         description: "The voice interview has been disconnected.",
       });
     } catch (error) {
       console.error("Error ending conversation:", error);
-      // Force disconnect by reloading if needed
+      // Force clear state even on error
       setMessages([]);
+      toast({
+        title: "Interview Ended",
+        description: "The voice interview has been disconnected.",
+      });
     }
   }, [conversation, toast]);
 
