@@ -21,7 +21,7 @@ serve(async (req) => {
       throw new Error("ELEVENLABS_AGENT_ID is not configured. Please create an agent at elevenlabs.io/app/conversational-ai and add the agent ID as a secret.");
     }
 
-    // Get a signed URL for the agent
+    // Get a conversation token for WebRTC connection (doesn't require convai_write permission)
     const response = await fetch(
       `https://api.elevenlabs.io/v1/convai/conversation/get_signed_url?agent_id=${ELEVENLABS_AGENT_ID}`,
       {
@@ -32,10 +32,44 @@ serve(async (req) => {
       }
     );
 
+    // If signed URL fails, try the token endpoint for WebRTC
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error("ElevenLabs signed URL error:", response.status, errorText);
-      throw new Error(`Failed to get signed URL: ${response.status} - ${errorText}`);
+      console.log("Signed URL failed, trying token endpoint...");
+      
+      // Use the token endpoint which has different permission requirements
+      const tokenResponse = await fetch(
+        `https://api.elevenlabs.io/v1/convai/conversation/get_token?agent_id=${ELEVENLABS_AGENT_ID}`,
+        {
+          method: "GET",
+          headers: {
+            "xi-api-key": ELEVENLABS_API_KEY,
+          },
+        }
+      );
+
+      if (!tokenResponse.ok) {
+        const errorText = await tokenResponse.text();
+        console.error("ElevenLabs token error:", tokenResponse.status, errorText);
+        
+        // Return the agent ID so client can try direct connection with public agent
+        return new Response(
+          JSON.stringify({ 
+            agentId: ELEVENLABS_AGENT_ID,
+            usePublicMode: true,
+            message: "Using public agent mode - ensure agent is set to public in ElevenLabs dashboard"
+          }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const tokenData = await tokenResponse.json();
+      return new Response(
+        JSON.stringify({ 
+          token: tokenData.token,
+          agentId: ELEVENLABS_AGENT_ID 
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
     const data = await response.json();

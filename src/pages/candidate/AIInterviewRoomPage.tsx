@@ -668,6 +668,7 @@ export default function AIInterviewRoomPage() {
               }
               jobTitle={jobContext?.jobTitle}
               onSpeakingChange={setAiSpeaking}
+              autoConnect={true}
               className="h-full"
             />
           ) : (
