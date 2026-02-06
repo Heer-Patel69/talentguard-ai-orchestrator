@@ -7,3 +7,4 @@ export { TextToSpeech, useTextToSpeech } from "./TextToSpeech";
 export { ProctoringMonitor, useProctoring } from "./ProctoringMonitor";
 export { RealtimeVoiceAgent, type VoiceMessage } from "./RealtimeVoiceAgent";
 export { ContinuousVoicePanel } from "./ContinuousVoicePanel";
+export { AudioCheck } from "./AudioCheck";
