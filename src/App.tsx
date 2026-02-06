@@ -23,6 +23,9 @@ const CandidateDashboardPage = lazy(() => import("./pages/CandidateDashboardPage
 const InterviewPage = lazy(() => import("./pages/InterviewPage"));
 const CandidateReportPage = lazy(() => import("./pages/CandidateReportPage"));
 const NotFound = lazy(() => import("./pages/NotFound"));
+const ForCompaniesPage = lazy(() => import("./pages/ForCompaniesPage"));
+const ForCandidatesPage = lazy(() => import("./pages/ForCandidatesPage"));
+const PricingPage = lazy(() => import("./pages/PricingPage"));
 
 // Dashboard Pages (Interviewer)
 const DashboardOverview = lazy(() => import("./pages/dashboard/DashboardOverview"));
@@ -74,6 +77,9 @@ const App = () => (
                   <Route path="/register/interviewer" element={<InterviewerRegisterPage />} />
                   <Route path="/register/candidate" element={<CandidateRegisterPage />} />
                   <Route path="/login" element={<LoginPage />} />
+                  <Route path="/for-companies" element={<ForCompaniesPage />} />
+                  <Route path="/for-candidates" element={<ForCandidatesPage />} />
+                  <Route path="/pricing" element={<PricingPage />} />
 
                   {/* Protected Routes - Candidate */}
                   <Route
