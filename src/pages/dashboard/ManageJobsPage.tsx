@@ -103,7 +103,7 @@ export default function ManageJobsPage() {
     }
   };
 
-  const updateJobStatus = async (jobId: string, newStatus: string) => {
+  const updateJobStatus = async (jobId: string, newStatus: "active" | "closed" | "draft" | "paused") => {
     try {
       const { error } = await supabase
         .from("jobs")
