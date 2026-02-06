@@ -63,6 +63,7 @@ interface ResumeData {
   fullName: string | null;
   email: string | null;
   phone: string | null;
+  location: string | null;
   skills: string[];
   experience_years: number;
   education: Array<{
@@ -70,6 +71,13 @@ interface ResumeData {
     institution: string;
     year: number;
     field?: string;
+    gpa?: string;
+  }>;
+  workExperience: Array<{
+    company: string;
+    title: string;
+    duration: string;
+    description: string;
   }>;
   projects: Array<{
     name: string;
@@ -77,7 +85,26 @@ interface ResumeData {
     technologies: string[];
   }>;
   certifications: string[];
+  languages: string[];
   summary: string | null;
+  github_url: string | null;
+  linkedin_url: string | null;
+  portfolio_url: string | null;
+  confidence_scores: {
+    fullName: "high" | "medium" | "low";
+    email: "high" | "medium" | "low";
+    phone: "high" | "medium" | "low";
+    skills: "high" | "medium" | "low";
+    experience: "high" | "medium" | "low";
+    education: "high" | "medium" | "low";
+  };
+  validation_warnings: string[];
+  suggested_job_preferences: {
+    fields: string[];
+    experience_level: string;
+    roles: string[];
+    work_type: string[];
+  };
 }
 
 const steps = ["Account", "Professional"];
@@ -148,10 +175,19 @@ export function CandidateRegisterForm() {
         if (data.phone && !form.getValues("phoneNumber")) {
           form.setValue("phoneNumber", data.phone);
         }
+        // Auto-fill GitHub and LinkedIn if found
+        if (data.github_url && !form.getValues("githubUrl")) {
+          form.setValue("githubUrl", data.github_url);
+        }
+        if (data.linkedin_url && !form.getValues("linkedinUrl")) {
+          form.setValue("linkedinUrl", data.linkedin_url);
+        }
 
+        // Show success with details
+        const warningCount = data.validation_warnings?.length || 0;
         toast({
           title: "Resume parsed successfully!",
-          description: `Extracted ${data.skills?.length || 0} skills and ${data.education?.length || 0} education entries.`,
+          description: `Extracted ${data.skills?.length || 0} skills, ${data.education?.length || 0} education entries, and ${data.workExperience?.length || 0} work experiences.${warningCount > 0 ? ` (${warningCount} warnings)` : ''}`,
         });
       }
     } catch (error: any) {
