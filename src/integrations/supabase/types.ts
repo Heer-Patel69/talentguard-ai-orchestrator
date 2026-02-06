@@ -14,6 +14,87 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_learning_metrics: {
+        Row: {
+          created_at: string
+          id: string
+          improvement_rate: number | null
+          job_field: string | null
+          metric_name: string
+          metric_type: string
+          metric_value: number | null
+          notes: string | null
+          sample_count: number | null
+          time_period: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          improvement_rate?: number | null
+          job_field?: string | null
+          metric_name: string
+          metric_type: string
+          metric_value?: number | null
+          notes?: string | null
+          sample_count?: number | null
+          time_period: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          improvement_rate?: number | null
+          job_field?: string | null
+          metric_name?: string
+          metric_type?: string
+          metric_value?: number | null
+          notes?: string | null
+          sample_count?: number | null
+          time_period?: string
+        }
+        Relationships: []
+      }
+      alternative_role_suggestions: {
+        Row: {
+          candidate_id: string
+          created_at: string
+          id: string
+          match_score: number | null
+          matching_skills: Json | null
+          original_job_id: string
+          outcome: string | null
+          reason: string | null
+          suggested_job_id: string | null
+          suggested_role_type: string
+          was_pursued: boolean | null
+        }
+        Insert: {
+          candidate_id: string
+          created_at?: string
+          id?: string
+          match_score?: number | null
+          matching_skills?: Json | null
+          original_job_id: string
+          outcome?: string | null
+          reason?: string | null
+          suggested_job_id?: string | null
+          suggested_role_type: string
+          was_pursued?: boolean | null
+        }
+        Update: {
+          candidate_id?: string
+          created_at?: string
+          id?: string
+          match_score?: number | null
+          matching_skills?: Json | null
+          original_job_id?: string
+          outcome?: string | null
+          reason?: string | null
+          suggested_job_id?: string | null
+          suggested_role_type?: string
+          was_pursued?: boolean | null
+        }
+        Relationships: []
+      }
       applications: {
         Row: {
           ai_confidence: number | null
@@ -678,6 +759,60 @@ export type Database = {
         }
         Relationships: []
       }
+      learning_outcomes: {
+        Row: {
+          actual_performance:
+            | Database["public"]["Enums"]["performance_rating"]
+            | null
+          ai_score: number | null
+          created_at: string
+          experience_level: string
+          follow_up_effectiveness: number | null
+          hire_success: boolean | null
+          id: string
+          interview_duration_minutes: number | null
+          job_field: string
+          questions_asked: number | null
+          skills_gap: Json | null
+          skills_matched: Json | null
+          toughness_level: string
+        }
+        Insert: {
+          actual_performance?:
+            | Database["public"]["Enums"]["performance_rating"]
+            | null
+          ai_score?: number | null
+          created_at?: string
+          experience_level: string
+          follow_up_effectiveness?: number | null
+          hire_success?: boolean | null
+          id?: string
+          interview_duration_minutes?: number | null
+          job_field: string
+          questions_asked?: number | null
+          skills_gap?: Json | null
+          skills_matched?: Json | null
+          toughness_level: string
+        }
+        Update: {
+          actual_performance?:
+            | Database["public"]["Enums"]["performance_rating"]
+            | null
+          ai_score?: number | null
+          created_at?: string
+          experience_level?: string
+          follow_up_effectiveness?: number | null
+          hire_success?: boolean | null
+          id?: string
+          interview_duration_minutes?: number | null
+          job_field?: string
+          questions_asked?: number | null
+          skills_gap?: Json | null
+          skills_matched?: Json | null
+          toughness_level?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
@@ -702,6 +837,51 @@ export type Database = {
           id?: string
           updated_at?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      question_effectiveness: {
+        Row: {
+          avg_time_spent_seconds: number | null
+          created_at: string
+          differentiation_score: number | null
+          follow_up_count: number | null
+          id: string
+          job_field: string
+          positive_outcomes: number | null
+          prediction_accuracy: number | null
+          question_text: string
+          question_type: string
+          times_asked: number | null
+          updated_at: string
+        }
+        Insert: {
+          avg_time_spent_seconds?: number | null
+          created_at?: string
+          differentiation_score?: number | null
+          follow_up_count?: number | null
+          id?: string
+          job_field: string
+          positive_outcomes?: number | null
+          prediction_accuracy?: number | null
+          question_text: string
+          question_type: string
+          times_asked?: number | null
+          updated_at?: string
+        }
+        Update: {
+          avg_time_spent_seconds?: number | null
+          created_at?: string
+          differentiation_score?: number | null
+          follow_up_count?: number | null
+          id?: string
+          job_field?: string
+          positive_outcomes?: number | null
+          prediction_accuracy?: number | null
+          question_text?: string
+          question_type?: string
+          times_asked?: number | null
+          updated_at?: string
         }
         Relationships: []
       }
@@ -772,6 +952,102 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      recruiter_feedback: {
+        Row: {
+          actual_decision: string
+          ai_recommendation: string
+          application_id: string
+          candidate_id: string
+          created_at: string
+          feedback_date: string
+          id: string
+          interviewer_id: string
+          job_id: string
+          performance_notes: string | null
+          performance_rating:
+            | Database["public"]["Enums"]["performance_rating"]
+            | null
+          probation_completed: boolean | null
+          probation_end_date: string | null
+          recommendation_accuracy: Database["public"]["Enums"]["feedback_accuracy"]
+          updated_at: string
+        }
+        Insert: {
+          actual_decision: string
+          ai_recommendation: string
+          application_id: string
+          candidate_id: string
+          created_at?: string
+          feedback_date?: string
+          id?: string
+          interviewer_id: string
+          job_id: string
+          performance_notes?: string | null
+          performance_rating?:
+            | Database["public"]["Enums"]["performance_rating"]
+            | null
+          probation_completed?: boolean | null
+          probation_end_date?: string | null
+          recommendation_accuracy: Database["public"]["Enums"]["feedback_accuracy"]
+          updated_at?: string
+        }
+        Update: {
+          actual_decision?: string
+          ai_recommendation?: string
+          application_id?: string
+          candidate_id?: string
+          created_at?: string
+          feedback_date?: string
+          id?: string
+          interviewer_id?: string
+          job_id?: string
+          performance_notes?: string | null
+          performance_rating?:
+            | Database["public"]["Enums"]["performance_rating"]
+            | null
+          probation_completed?: boolean | null
+          probation_end_date?: string | null
+          recommendation_accuracy?: Database["public"]["Enums"]["feedback_accuracy"]
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      role_patterns: {
+        Row: {
+          confidence_level: number | null
+          created_at: string
+          id: string
+          last_updated: string
+          sample_size: number | null
+          source_role: string
+          success_rate: number | null
+          target_role: string
+          transferable_skills: Json | null
+        }
+        Insert: {
+          confidence_level?: number | null
+          created_at?: string
+          id?: string
+          last_updated?: string
+          sample_size?: number | null
+          source_role: string
+          success_rate?: number | null
+          target_role: string
+          transferable_skills?: Json | null
+        }
+        Update: {
+          confidence_level?: number | null
+          created_at?: string
+          id?: string
+          last_updated?: string
+          sample_size?: number | null
+          source_role?: string
+          success_rate?: number | null
+          target_role?: string
+          transferable_skills?: Json | null
+        }
+        Relationships: []
       }
       round_results: {
         Row: {
@@ -1026,6 +1302,7 @@ export type Database = {
         | "experience"
         | "age_group"
       experience_level: "fresher" | "junior" | "mid" | "senior" | "architect"
+      feedback_accuracy: "correct" | "incorrect" | "partially_correct"
       industry:
         | "it"
         | "finance"
@@ -1039,6 +1316,7 @@ export type Database = {
         | "other"
       job_status: "draft" | "active" | "closed" | "paused"
       location_type: "remote" | "hybrid" | "onsite"
+      performance_rating: "1" | "2" | "3" | "4" | "5"
       round_type:
         | "mcq"
         | "coding"
@@ -1195,6 +1473,7 @@ export const Constants = {
         "age_group",
       ],
       experience_level: ["fresher", "junior", "mid", "senior", "architect"],
+      feedback_accuracy: ["correct", "incorrect", "partially_correct"],
       industry: [
         "it",
         "finance",
@@ -1209,6 +1488,7 @@ export const Constants = {
       ],
       job_status: ["draft", "active", "closed", "paused"],
       location_type: ["remote", "hybrid", "onsite"],
+      performance_rating: ["1", "2", "3", "4", "5"],
       round_type: [
         "mcq",
         "coding",
