@@ -6,7 +6,6 @@ import { Container, Section, SectionHeader, PageBackground } from "@/components/
 import { Navbar, Footer } from "@/components/layout/Navbar";
 import heroBg from "@/assets/hero-bg.jpg";
 import {
-  Shield,
   Brain,
   Eye,
   Code,
@@ -17,6 +16,12 @@ import {
   Zap,
   Lock,
   Bot,
+  Shield,
+  Building2,
+  UserCheck,
+  Sparkles,
+  Globe,
+  HeartHandshake,
 } from "lucide-react";
 
 const features = [
@@ -65,13 +70,25 @@ const stats = [
   { value: "4.9/5", label: "Trust Score" },
 ];
 
+const forCompanies = [
+  { icon: Building2, title: "Enterprise Ready", description: "SOC2 compliant with SSO integration" },
+  { icon: Sparkles, title: "AI-Powered Screening", description: "Reduce time-to-hire by 90%" },
+  { icon: Shield, title: "Fraud Protection", description: "99.2% detection accuracy" },
+];
+
+const forCandidates = [
+  { icon: UserCheck, title: "Fair Assessment", description: "Unbiased AI evaluation" },
+  { icon: Globe, title: "Interview Anytime", description: "24/7 availability worldwide" },
+  { icon: HeartHandshake, title: "Instant Feedback", description: "Know your strengths & areas to improve" },
+];
+
 export default function LandingPage() {
   return (
     <div className="min-h-screen">
       <PageBackground pattern="grid" />
       {/* Hero Background Image */}
       <div 
-        className="fixed inset-0 -z-10 opacity-30"
+        className="fixed inset-0 -z-10 opacity-20 dark:opacity-30"
         style={{
           backgroundImage: `url(${heroBg})`,
           backgroundSize: 'cover',
@@ -106,7 +123,7 @@ export default function LandingPage() {
             </h1>
 
             <p className="mx-auto mb-8 max-w-2xl text-lg text-muted-foreground md:text-xl">
-              TalentGuard AI orchestrates your entire hiring pipeline—from candidate
+              HireMinds AI orchestrates your entire hiring pipeline—from candidate
               screening to final selection—with fraud-proof proctoring and
               explainable AI decisions.
             </p>
@@ -203,13 +220,92 @@ export default function LandingPage() {
         </Container>
       </Section>
 
+      {/* For Companies & Candidates */}
+      <Section>
+        <Container>
+          <div className="grid gap-8 md:grid-cols-2">
+            {/* For Companies */}
+            <motion.div
+              initial={{ opacity: 0, x: -20 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.5 }}
+            >
+              <GlassCard className="h-full">
+                <div className="mb-6 flex items-center gap-3">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10">
+                    <Building2 className="h-6 w-6 text-primary" />
+                  </div>
+                  <h3 className="text-2xl font-bold">For Companies</h3>
+                </div>
+                <div className="space-y-4">
+                  {forCompanies.map((item) => (
+                    <div key={item.title} className="flex items-start gap-3">
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-success/10">
+                        <item.icon className="h-4 w-4 text-success" />
+                      </div>
+                      <div>
+                        <h4 className="font-semibold">{item.title}</h4>
+                        <p className="text-sm text-muted-foreground">{item.description}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <Button variant="hero" className="mt-6 w-full" asChild>
+                  <Link to="/for-companies">
+                    Learn More
+                    <ArrowRight className="ml-2 h-4 w-4" />
+                  </Link>
+                </Button>
+              </GlassCard>
+            </motion.div>
+
+            {/* For Candidates */}
+            <motion.div
+              initial={{ opacity: 0, x: 20 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.5 }}
+            >
+              <GlassCard className="h-full">
+                <div className="mb-6 flex items-center gap-3">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10">
+                    <UserCheck className="h-6 w-6 text-primary" />
+                  </div>
+                  <h3 className="text-2xl font-bold">For Candidates</h3>
+                </div>
+                <div className="space-y-4">
+                  {forCandidates.map((item) => (
+                    <div key={item.title} className="flex items-start gap-3">
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-success/10">
+                        <item.icon className="h-4 w-4 text-success" />
+                      </div>
+                      <div>
+                        <h4 className="font-semibold">{item.title}</h4>
+                        <p className="text-sm text-muted-foreground">{item.description}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <Button variant="outline" className="mt-6 w-full" asChild>
+                  <Link to="/for-candidates">
+                    Learn More
+                    <ArrowRight className="ml-2 h-4 w-4" />
+                  </Link>
+                </Button>
+              </GlassCard>
+            </motion.div>
+          </div>
+        </Container>
+      </Section>
+
       {/* Features */}
       <Section>
         <Container>
           <SectionHeader
             eyebrow="Features"
             title="Everything you need for autonomous hiring"
-            description="From initial screening to final offer, TalentGuard AI handles every step with precision and transparency."
+            description="From initial screening to final offer, HireMinds AI handles every step with precision and transparency."
           />
 
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
@@ -297,7 +393,7 @@ export default function LandingPage() {
               Ready to transform your hiring?
             </h2>
             <p className="mx-auto mb-8 max-w-2xl text-muted-foreground">
-              Join hundreds of companies using TalentGuard AI to find the best
+              Join hundreds of companies using HireMinds AI to find the best
               talent faster, fairer, and fraud-free.
             </p>
             <div className="flex flex-col items-center justify-center gap-4 sm:flex-row">
