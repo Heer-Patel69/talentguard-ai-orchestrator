@@ -10,7 +10,6 @@ import {
   Brain,
   User,
   Mic,
-  MicOff,
   Volume2,
   VolumeX,
   Loader2,
@@ -52,19 +51,44 @@ export function RealtimeVoiceAgent({
   const { toast } = useToast();
   const [isConnecting, setIsConnecting] = useState(false);
   const [messages, setMessages] = useState<VoiceMessage[]>([]);
-  const [isMuted, setIsMuted] = useState(false);
   const [volume, setVolume] = useState(0.8);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Reconnection tracking
+  // Connection stability tracking
   const reconnectAttemptRef = useRef(0);
   const maxReconnectAttempts = 3;
+  const isIntentionalDisconnectRef = useRef(false);
+  const connectionLockRef = useRef(false); // Prevent concurrent connection attempts
+  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const hasAutoConnectedRef = useRef(false); // Prevent multiple auto-connects
+
+  // Store callbacks in refs to avoid dependency issues
+  const onMessageRef = useRef(onMessage);
+  const onConnectionChangeRef = useRef(onConnectionChange);
+  const onSpeakingChangeRef = useRef(onSpeakingChange);
+  
+  useEffect(() => {
+    onMessageRef.current = onMessage;
+    onConnectionChangeRef.current = onConnectionChange;
+    onSpeakingChangeRef.current = onSpeakingChange;
+  }, [onMessage, onConnectionChange, onSpeakingChange]);
+
+  // Cleanup function for reconnect timeouts
+  useEffect(() => {
+    return () => {
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const conversation = useConversation({
     onConnect: () => {
       console.log("✅ Connected to ElevenLabs agent successfully");
-      reconnectAttemptRef.current = 0; // Reset on successful connect
-      onConnectionChange?.(true);
+      reconnectAttemptRef.current = 0;
+      connectionLockRef.current = false;
+      setIsConnecting(false);
+      onConnectionChangeRef.current?.(true);
       toast({
         title: "Connected",
         description: "Voice interview started. Speak naturally - the AI is listening!",
@@ -72,10 +96,26 @@ export function RealtimeVoiceAgent({
     },
     onDisconnect: () => {
       console.log("Disconnected from ElevenLabs agent");
-      onConnectionChange?.(false);
+      connectionLockRef.current = false;
+      setIsConnecting(false);
+      onConnectionChangeRef.current?.(false);
       
-      // Only show disconnect toast if it wasn't intentional (we didn't call endSession manually)
-      // If still expecting connection, this might be a glitch - don't alarm user
+      // Only attempt reconnect if it wasn't intentional and we haven't exceeded attempts
+      if (!isIntentionalDisconnectRef.current && reconnectAttemptRef.current < maxReconnectAttempts) {
+        reconnectAttemptRef.current++;
+        const delay = Math.min(1000 * Math.pow(2, reconnectAttemptRef.current - 1), 5000);
+        
+        console.log(`🔄 Auto-reconnecting in ${delay}ms (attempt ${reconnectAttemptRef.current}/${maxReconnectAttempts})`);
+        
+        toast({
+          title: "Reconnecting...",
+          description: `Connection lost. Attempting to reconnect (${reconnectAttemptRef.current}/${maxReconnectAttempts})`,
+        });
+        
+        reconnectTimeoutRef.current = setTimeout(() => {
+          startConversationInternal();
+        }, delay);
+      }
     },
     onMessage: (message: any) => {
       console.log("Agent message:", message);
@@ -84,7 +124,6 @@ export function RealtimeVoiceAgent({
       if (message?.type === "user_transcript") {
         const userTranscript = message?.user_transcription_event?.user_transcript;
         if (userTranscript && userTranscript.trim().length > 2) {
-          // Ignore very short transcripts (likely noise)
           const voiceMessage: VoiceMessage = {
             id: crypto.randomUUID(),
             role: "user",
@@ -92,9 +131,9 @@ export function RealtimeVoiceAgent({
             timestamp: new Date(),
           };
           setMessages((prev) => [...prev, voiceMessage]);
-          onMessage?.(voiceMessage);
+          onMessageRef.current?.(voiceMessage);
           
-          // Check if user wants to end the interview - only for clear, intentional phrases
+          // Check if user wants to end the interview
           const endPhrases = [
             "end the meeting", "end meeting", "end the interview", "end interview",
             "stop the interview", "stop interview", "finish interview", "finish the interview",
@@ -107,9 +146,9 @@ export function RealtimeVoiceAgent({
           
           if (shouldEnd) {
             console.log("User requested to end interview:", userTranscript);
-            // Give AI a moment to respond gracefully, then end
             setTimeout(async () => {
               try {
+                isIntentionalDisconnectRef.current = true;
                 await conversation.endSession();
                 toast({
                   title: "Interview Ended",
@@ -118,7 +157,7 @@ export function RealtimeVoiceAgent({
               } catch (e) {
                 console.error("Error ending session:", e);
               }
-            }, 3000); // Wait 3 seconds for AI to say goodbye
+            }, 3000);
           }
         }
       }
@@ -134,14 +173,14 @@ export function RealtimeVoiceAgent({
             timestamp: new Date(),
           };
           setMessages((prev) => [...prev, voiceMessage]);
-          onMessage?.(voiceMessage);
+          onMessageRef.current?.(voiceMessage);
         }
       }
     },
     onError: (error) => {
       console.error("❌ Conversation error:", error);
+      connectionLockRef.current = false;
       
-      // Check for specific error types
       const errorMessage = error?.message || String(error);
       
       if (errorMessage.includes("permission") || errorMessage.includes("denied")) {
@@ -150,35 +189,18 @@ export function RealtimeVoiceAgent({
           description: "Please allow microphone access to use voice interview.",
           variant: "destructive",
         });
+        setIsConnecting(false);
         return;
       }
       
-      // Handle connection issues with auto-reconnect
+      // Handle connection issues - let onDisconnect handle reconnection
       if (errorMessage.includes("connection") || errorMessage.includes("WebSocket") || errorMessage.includes("network")) {
-        if (reconnectAttemptRef.current < maxReconnectAttempts) {
-          reconnectAttemptRef.current++;
-          console.log(`🔄 Attempting reconnection ${reconnectAttemptRef.current}/${maxReconnectAttempts}`);
-          
-          toast({
-            title: "Reconnecting...",
-            description: `Connection hiccup. Attempt ${reconnectAttemptRef.current}/${maxReconnectAttempts}`,
-          });
-          
-          setTimeout(() => {
-            startConversation();
-          }, 1000 * reconnectAttemptRef.current); // Exponential backoff
-          return;
-        }
-        
-        toast({
-          title: "Connection Failed",
-          description: "Unable to connect to voice server. Please check your internet connection and try again.",
-          variant: "destructive",
-        });
+        // onDisconnect will handle reconnection logic
         return;
       }
       
       // Generic error handling
+      setIsConnecting(false);
       toast({
         title: "Voice Error",
         description: "There was an issue with the voice connection. Please try again.",
@@ -189,8 +211,8 @@ export function RealtimeVoiceAgent({
 
   // Track speaking state
   useEffect(() => {
-    onSpeakingChange?.(conversation.isSpeaking);
-  }, [conversation.isSpeaking, onSpeakingChange]);
+    onSpeakingChangeRef.current?.(conversation.isSpeaking);
+  }, [conversation.isSpeaking]);
 
   // Auto-scroll to bottom on new messages
   useEffect(() => {
@@ -199,10 +221,25 @@ export function RealtimeVoiceAgent({
     }
   }, [messages]);
 
-  const startConversation = useCallback(async () => {
+  // Internal connection function without state conflicts
+  const startConversationInternal = useCallback(async () => {
+    // Prevent concurrent connection attempts
+    if (connectionLockRef.current) {
+      console.log("⏳ Connection already in progress, skipping...");
+      return;
+    }
+    
+    if (conversation.status === "connected") {
+      console.log("✅ Already connected, skipping...");
+      return;
+    }
+    
+    connectionLockRef.current = true;
+    isIntentionalDisconnectRef.current = false;
     setIsConnecting(true);
+    
     try {
-      // First, verify microphone permission (ElevenLabs SDK will request its own stream)
+      // Verify microphone permission
       try {
         const testStream = await navigator.mediaDevices.getUserMedia({ 
           audio: {
@@ -211,7 +248,6 @@ export function RealtimeVoiceAgent({
             autoGainControl: true,
           } 
         });
-        // Stop the test stream immediately - ElevenLabs SDK manages its own
         testStream.getTracks().forEach(track => track.stop());
         console.log("✅ Microphone permission verified");
       } catch (micError) {
@@ -221,6 +257,7 @@ export function RealtimeVoiceAgent({
           description: "Please allow microphone access to start the voice interview.",
           variant: "destructive",
         });
+        connectionLockRef.current = false;
         setIsConnecting(false);
         return;
       }
@@ -246,19 +283,16 @@ export function RealtimeVoiceAgent({
 
       // Try different connection methods based on what the server returned
       if (data?.signedUrl) {
-        // Use WebSocket with signed URL (most reliable for authenticated agents)
         console.log("🔗 Connecting with signed URL (WebSocket)...");
         await conversation.startSession({
           signedUrl: data.signedUrl,
         });
       } else if (data?.token) {
-        // Use WebRTC with conversation token
         console.log("🔗 Connecting with conversation token (WebRTC)...");
         await conversation.startSession({
           conversationToken: data.token,
         });
       } else if (data?.agentId) {
-        // Fallback to public agent mode
         console.log("🔗 Connecting to public agent:", data.agentId);
         if (data?.message) {
           console.warn("⚠️", data.message);
@@ -273,10 +307,11 @@ export function RealtimeVoiceAgent({
       console.log("✅ Session started successfully");
     } catch (error) {
       console.error("❌ Failed to start conversation:", error);
+      connectionLockRef.current = false;
+      setIsConnecting(false);
       
       const errorMessage = error instanceof Error ? error.message : "Could not start voice interview";
       
-      // Provide more helpful error messages
       if (errorMessage.includes("public") || errorMessage.includes("agent")) {
         toast({
           title: "Voice Agent Not Available",
@@ -290,18 +325,28 @@ export function RealtimeVoiceAgent({
           variant: "destructive",
         });
       }
-    } finally {
-      setIsConnecting(false);
     }
   }, [jobField, toughnessLevel, jobTitle, conversation, toast]);
 
+  // Public start function
+  const startConversation = useCallback(async () => {
+    reconnectAttemptRef.current = 0;
+    await startConversationInternal();
+  }, [startConversationInternal]);
+
   const stopConversation = useCallback(async () => {
     try {
-      // Immediately clear state to show disconnected status
-      setMessages([]);
-      reconnectAttemptRef.current = maxReconnectAttempts; // Prevent auto-reconnect
+      // Mark as intentional to prevent auto-reconnect
+      isIntentionalDisconnectRef.current = true;
+      reconnectAttemptRef.current = maxReconnectAttempts;
       
-      // Then end the session
+      // Clear any pending reconnect
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+        reconnectTimeoutRef.current = null;
+      }
+      
+      setMessages([]);
       await conversation.endSession();
       
       toast({
@@ -310,7 +355,6 @@ export function RealtimeVoiceAgent({
       });
     } catch (error) {
       console.error("Error ending conversation:", error);
-      // Force clear state even on error
       setMessages([]);
       toast({
         title: "Interview Ended",
@@ -319,22 +363,22 @@ export function RealtimeVoiceAgent({
     }
   }, [conversation, toast]);
 
-  const toggleMute = useCallback(() => {
-    setIsMuted((prev) => !prev);
-    // Note: ElevenLabs SDK doesn't have direct mute - we'd need to handle this differently
-  }, []);
-
   const adjustVolume = useCallback(async (newVolume: number) => {
     setVolume(newVolume);
     await conversation.setVolume({ volume: newVolume });
   }, [conversation]);
 
-  // Auto-connect if enabled
+  // Auto-connect only once on mount if enabled
   useEffect(() => {
-    if (autoConnect && conversation.status === "disconnected") {
-      startConversation();
+    if (autoConnect && !hasAutoConnectedRef.current && conversation.status === "disconnected") {
+      hasAutoConnectedRef.current = true;
+      // Small delay to ensure component is fully mounted
+      const timer = setTimeout(() => {
+        startConversation();
+      }, 500);
+      return () => clearTimeout(timer);
     }
-  }, [autoConnect, conversation.status, startConversation]);
+  }, [autoConnect]); // Intentionally minimal dependencies
 
   const isConnected = conversation.status === "connected";
   const isAgentSpeaking = conversation.isSpeaking;
@@ -379,20 +423,18 @@ export function RealtimeVoiceAgent({
 
         <div className="flex items-center gap-2">
           {isConnected && (
-            <>
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-8 w-8 p-0"
-                onClick={() => adjustVolume(volume > 0 ? 0 : 0.8)}
-              >
-                {volume > 0 ? (
-                  <Volume2 className="h-4 w-4" />
-                ) : (
-                  <VolumeX className="h-4 w-4" />
-                )}
-              </Button>
-            </>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 w-8 p-0"
+              onClick={() => adjustVolume(volume > 0 ? 0 : 0.8)}
+            >
+              {volume > 0 ? (
+                <Volume2 className="h-4 w-4" />
+              ) : (
+                <VolumeX className="h-4 w-4" />
+              )}
+            </Button>
           )}
         </div>
       </div>
