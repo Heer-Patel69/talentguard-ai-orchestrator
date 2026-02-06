@@ -52,6 +52,7 @@ export function RealtimeVoiceAgent({
   const [isConnecting, setIsConnecting] = useState(false);
   const [messages, setMessages] = useState<VoiceMessage[]>([]);
   const [volume, setVolume] = useState(0.8);
+  const [connectionState, setConnectionState] = useState<"idle" | "connecting" | "connected" | "disconnecting" | "error">("idle");
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Connection stability tracking
@@ -61,6 +62,9 @@ export function RealtimeVoiceAgent({
   const connectionLockRef = useRef(false); // Prevent concurrent connection attempts
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const hasAutoConnectedRef = useRef(false); // Prevent multiple auto-connects
+  const sessionActiveRef = useRef(false); // Track if session is truly active
+  const lastConnectionAttemptRef = useRef<number>(0); // Debounce connection attempts
+  const cleanupInProgressRef = useRef(false); // Prevent cleanup race conditions
 
   // Store callbacks in refs to avoid dependency issues
   const onMessageRef = useRef(onMessage);
@@ -78,7 +82,11 @@ export function RealtimeVoiceAgent({
     return () => {
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
+        reconnectTimeoutRef.current = null;
       }
+      // Mark session as inactive on unmount
+      sessionActiveRef.current = false;
+      cleanupInProgressRef.current = true;
     };
   }, []);
 
@@ -87,6 +95,8 @@ export function RealtimeVoiceAgent({
       console.log("✅ Connected to ElevenLabs agent successfully");
       reconnectAttemptRef.current = 0;
       connectionLockRef.current = false;
+      sessionActiveRef.current = true;
+      cleanupInProgressRef.current = false;
       setIsConnecting(false);
       onConnectionChangeRef.current?.(true);
       toast({
@@ -96,28 +106,57 @@ export function RealtimeVoiceAgent({
     },
     onDisconnect: () => {
       console.log("Disconnected from ElevenLabs agent");
+      const wasActive = sessionActiveRef.current;
+      sessionActiveRef.current = false;
       connectionLockRef.current = false;
+      cleanupInProgressRef.current = false;
       setIsConnecting(false);
       onConnectionChangeRef.current?.(false);
       
-      // Only attempt reconnect if it wasn't intentional and we haven't exceeded attempts
-      if (!isIntentionalDisconnectRef.current && reconnectAttemptRef.current < maxReconnectAttempts) {
+      // Only attempt reconnect if:
+      // 1. It wasn't intentional
+      // 2. We haven't exceeded attempts  
+      // 3. The session was previously active (not a failed initial connection)
+      if (
+        !isIntentionalDisconnectRef.current && 
+        reconnectAttemptRef.current < maxReconnectAttempts &&
+        wasActive
+      ) {
         reconnectAttemptRef.current++;
-        const delay = Math.min(1000 * Math.pow(2, reconnectAttemptRef.current - 1), 5000);
+        // Exponential backoff with jitter to prevent thundering herd
+        const baseDelay = Math.min(1000 * Math.pow(2, reconnectAttemptRef.current - 1), 5000);
+        const jitter = Math.random() * 500;
+        const delay = baseDelay + jitter;
         
-        console.log(`🔄 Auto-reconnecting in ${delay}ms (attempt ${reconnectAttemptRef.current}/${maxReconnectAttempts})`);
+        console.log(`🔄 Auto-reconnecting in ${Math.round(delay)}ms (attempt ${reconnectAttemptRef.current}/${maxReconnectAttempts})`);
         
         toast({
           title: "Reconnecting...",
           description: `Connection lost. Attempting to reconnect (${reconnectAttemptRef.current}/${maxReconnectAttempts})`,
         });
         
+        // Clear any existing timeout first
+        if (reconnectTimeoutRef.current) {
+          clearTimeout(reconnectTimeoutRef.current);
+        }
+        
         reconnectTimeoutRef.current = setTimeout(() => {
-          startConversationInternal();
+          // Double-check we should still reconnect
+          if (!isIntentionalDisconnectRef.current && !sessionActiveRef.current && !cleanupInProgressRef.current) {
+            startConversationInternal();
+          }
         }, delay);
+      } else if (isIntentionalDisconnectRef.current) {
+        console.log("✅ Intentional disconnect, not reconnecting");
       }
     },
     onMessage: (message: any) => {
+      // Ignore messages if session is not active
+      if (!sessionActiveRef.current) {
+        console.log("Ignoring message - session not active");
+        return;
+      }
+      
       console.log("Agent message:", message);
       
       // Handle user transcripts
@@ -147,8 +186,12 @@ export function RealtimeVoiceAgent({
           if (shouldEnd) {
             console.log("User requested to end interview:", userTranscript);
             setTimeout(async () => {
+              // Verify session is still active before ending
+              if (!sessionActiveRef.current) return;
+              
               try {
                 isIntentionalDisconnectRef.current = true;
+                sessionActiveRef.current = false;
                 await conversation.endSession();
                 toast({
                   title: "Interview Ended",
@@ -183,6 +226,14 @@ export function RealtimeVoiceAgent({
       
       const errorMessage = error?.message || String(error);
       
+      // Handle WebSocket state errors (CLOSING/CLOSED) - these are expected during cleanup
+      if (errorMessage.includes("CLOSING") || errorMessage.includes("CLOSED") || errorMessage.includes("already in")) {
+        console.log("⚠️ WebSocket state error detected - cleaning up stale connection");
+        sessionActiveRef.current = false;
+        // Don't show toast - let onDisconnect handle recovery
+        return;
+      }
+      
       if (errorMessage.includes("permission") || errorMessage.includes("denied")) {
         toast({
           title: "Microphone Permission Required",
@@ -190,17 +241,20 @@ export function RealtimeVoiceAgent({
           variant: "destructive",
         });
         setIsConnecting(false);
+        sessionActiveRef.current = false;
         return;
       }
       
       // Handle connection issues - let onDisconnect handle reconnection
       if (errorMessage.includes("connection") || errorMessage.includes("WebSocket") || errorMessage.includes("network")) {
+        console.log("⚠️ Connection error - onDisconnect will handle recovery");
         // onDisconnect will handle reconnection logic
         return;
       }
       
       // Generic error handling
       setIsConnecting(false);
+      sessionActiveRef.current = false;
       toast({
         title: "Voice Error",
         description: "There was an issue with the voice connection. Please try again.",
@@ -223,14 +277,37 @@ export function RealtimeVoiceAgent({
 
   // Internal connection function without state conflicts
   const startConversationInternal = useCallback(async () => {
+    // Debounce rapid connection attempts (min 500ms between attempts)
+    const now = Date.now();
+    if (now - lastConnectionAttemptRef.current < 500) {
+      console.log("⏳ Connection attempt too soon, debouncing...");
+      return;
+    }
+    lastConnectionAttemptRef.current = now;
+    
     // Prevent concurrent connection attempts
     if (connectionLockRef.current) {
       console.log("⏳ Connection already in progress, skipping...");
       return;
     }
     
+    // Check if cleanup is in progress
+    if (cleanupInProgressRef.current) {
+      console.log("⏳ Cleanup in progress, waiting...");
+      await new Promise(resolve => setTimeout(resolve, 200));
+      if (cleanupInProgressRef.current) {
+        console.log("⏳ Cleanup still in progress, aborting connection");
+        return;
+      }
+    }
+    
     if (conversation.status === "connected") {
       console.log("✅ Already connected, skipping...");
+      return;
+    }
+    
+    if (sessionActiveRef.current) {
+      console.log("⚠️ Session still active, skipping new connection...");
       return;
     }
     
@@ -281,6 +358,14 @@ export function RealtimeVoiceAgent({
         agentId: data?.agentId ? `${data.agentId.substring(0, 10)}...` : null
       });
 
+      // Verify we should still connect (check again after async operations)
+      if (isIntentionalDisconnectRef.current || cleanupInProgressRef.current) {
+        console.log("⚠️ Connection cancelled during setup");
+        connectionLockRef.current = false;
+        setIsConnecting(false);
+        return;
+      }
+
       // Try different connection methods based on what the server returned
       if (data?.signedUrl) {
         console.log("🔗 Connecting with signed URL (WebSocket)...");
@@ -308,9 +393,16 @@ export function RealtimeVoiceAgent({
     } catch (error) {
       console.error("❌ Failed to start conversation:", error);
       connectionLockRef.current = false;
+      sessionActiveRef.current = false;
       setIsConnecting(false);
       
       const errorMessage = error instanceof Error ? error.message : "Could not start voice interview";
+      
+      // Don't show toast for WebSocket state errors
+      if (errorMessage.includes("CLOSING") || errorMessage.includes("CLOSED")) {
+        console.log("⚠️ WebSocket state error during connection - will retry");
+        return;
+      }
       
       if (errorMessage.includes("public") || errorMessage.includes("agent")) {
         toast({
@@ -335,10 +427,19 @@ export function RealtimeVoiceAgent({
   }, [startConversationInternal]);
 
   const stopConversation = useCallback(async () => {
+    // Prevent multiple stop calls
+    if (cleanupInProgressRef.current) {
+      console.log("⏳ Stop already in progress, skipping...");
+      return;
+    }
+    
     try {
+      cleanupInProgressRef.current = true;
+      
       // Mark as intentional to prevent auto-reconnect
       isIntentionalDisconnectRef.current = true;
       reconnectAttemptRef.current = maxReconnectAttempts;
+      sessionActiveRef.current = false;
       
       // Clear any pending reconnect
       if (reconnectTimeoutRef.current) {
@@ -347,7 +448,13 @@ export function RealtimeVoiceAgent({
       }
       
       setMessages([]);
-      await conversation.endSession();
+      
+      // Only try to end session if connected
+      if (conversation.status === "connected") {
+        // Wait a brief moment to ensure any pending operations complete
+        await new Promise(resolve => setTimeout(resolve, 50));
+        await conversation.endSession();
+      }
       
       toast({
         title: "Interview Ended",
@@ -355,11 +462,15 @@ export function RealtimeVoiceAgent({
       });
     } catch (error) {
       console.error("Error ending conversation:", error);
+      // Still mark as ended even if error
       setMessages([]);
       toast({
         title: "Interview Ended",
         description: "The voice interview has been disconnected.",
       });
+    } finally {
+      cleanupInProgressRef.current = false;
+      connectionLockRef.current = false;
     }
   }, [conversation, toast]);
 
