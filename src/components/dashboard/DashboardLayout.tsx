@@ -21,6 +21,7 @@ import {
   Bell,
   Search,
   Scale,
+  Target,
 } from "lucide-react";
 
 interface DashboardLayoutProps {
@@ -29,6 +30,7 @@ interface DashboardLayoutProps {
 
 const sidebarLinks = [
   { href: "/dashboard", label: "Overview", icon: LayoutDashboard },
+  { href: "/dashboard/command-center", label: "Command Center", icon: Target },
   { href: "/dashboard/jobs", label: "Manage Jobs", icon: Briefcase },
   { href: "/dashboard/candidates", label: "Candidates", icon: Users },
   { href: "/dashboard/analytics", label: "Analytics", icon: BarChart3 },
