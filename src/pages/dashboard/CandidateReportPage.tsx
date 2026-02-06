@@ -211,32 +211,100 @@ export default function InterviewerCandidateReportPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("overview");
   const [selectedRound, setSelectedRound] = useState<number | null>(null);
+  const [candidateInfo, setCandidateInfo] = useState<{
+    name: string;
+    email: string;
+    role: string;
+    experience: string;
+    appliedDate: string;
+    interviewDate: string;
+    duration: string;
+    linkedIn: string | null;
+    github: string | null;
+  } | null>(null);
 
-  // For now, use mock data
+  // For now, use mock data for scores (will be populated by agents later)
   const mockData = generateMockData();
   const [candidateScore] = useState(mockData.candidateScore);
   const [roundScores] = useState(mockData.roundScores);
   const [questionScores] = useState(mockData.questionScores);
   const [auditLogs] = useState(mockData.auditLogs);
 
-  // Mock candidate info
-  const candidateInfo = {
-    name: "Sarah Chen",
-    email: "sarah.chen@email.com",
-    role: "Senior Frontend Developer",
-    experience: "5 years",
-    appliedDate: "Jan 15, 2024",
-    interviewDate: "Jan 18, 2024",
-    duration: "58:22",
-    linkedIn: "https://linkedin.com/in/sarahchen",
-    github: "https://github.com/sarahchen",
-  };
-
   useEffect(() => {
-    // Simulate loading
-    const timer = setTimeout(() => setIsLoading(false), 500);
-    return () => clearTimeout(timer);
-  }, []);
+    if (id) {
+      fetchCandidateData();
+    }
+  }, [id]);
+
+  const fetchCandidateData = async () => {
+    try {
+      // Fetch application with related data
+      const { data: application, error } = await supabase
+        .from("applications")
+        .select(`
+          id,
+          status,
+          current_round,
+          applied_at,
+          candidate_id,
+          job:jobs(id, title, field)
+        `)
+        .eq("id", id)
+        .maybeSingle();
+
+      if (error) throw error;
+
+      if (!application) {
+        toast({
+          title: "Not Found",
+          description: "Application not found",
+          variant: "destructive",
+        });
+        setIsLoading(false);
+        return;
+      }
+
+      // Fetch candidate profile
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("full_name, email")
+        .eq("user_id", application.candidate_id)
+        .maybeSingle();
+
+      const { data: candidateProfile } = await supabase
+        .from("candidate_profiles")
+        .select("github_url, linkedin_url, experience_years")
+        .eq("user_id", application.candidate_id)
+        .maybeSingle();
+
+      const jobData = application.job as any;
+
+      setCandidateInfo({
+        name: profile?.full_name || "Unknown Candidate",
+        email: profile?.email || "",
+        role: jobData?.title || "Unknown Position",
+        experience: candidateProfile?.experience_years 
+          ? `${candidateProfile.experience_years} years` 
+          : "N/A",
+        appliedDate: application.applied_at 
+          ? new Date(application.applied_at).toLocaleDateString() 
+          : "N/A",
+        interviewDate: "Pending",
+        duration: "N/A",
+        linkedIn: candidateProfile?.linkedin_url || null,
+        github: candidateProfile?.github_url || null,
+      });
+    } catch (error) {
+      console.error("Error fetching candidate data:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load candidate data",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleExportPDF = () => {
     toast({
@@ -260,6 +328,18 @@ export default function InterviewerCandidateReportPage() {
     );
   }
 
+  if (!candidateInfo) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center gap-4">
+        <h2 className="text-xl font-semibold">Candidate Not Found</h2>
+        <p className="text-muted-foreground">The requested application could not be found.</p>
+        <Button asChild>
+          <Link to="/dashboard/candidates">Back to Candidates</Link>
+        </Button>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -275,7 +355,7 @@ export default function InterviewerCandidateReportPage() {
 
           <div className="flex items-start gap-4">
             <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gradient-primary text-xl font-bold text-white">
-              {candidateInfo.name.split(" ").map(n => n[0]).join("")}
+              {candidateInfo.name.split(" ").map(n => n[0]).join("").slice(0, 2)}
             </div>
             <div>
               <h1 className="text-2xl font-bold">{candidateInfo.name}</h1>
@@ -287,30 +367,36 @@ export default function InterviewerCandidateReportPage() {
                 </span>
                 <span className="flex items-center gap-1">
                   <Calendar className="h-4 w-4" />
-                  {candidateInfo.interviewDate}
+                  Applied: {candidateInfo.appliedDate}
                 </span>
-                <span className="flex items-center gap-1">
-                  <Clock className="h-4 w-4" />
-                  {candidateInfo.duration}
-                </span>
+                {candidateInfo.duration !== "N/A" && (
+                  <span className="flex items-center gap-1">
+                    <Clock className="h-4 w-4" />
+                    {candidateInfo.duration}
+                  </span>
+                )}
               </div>
             </div>
           </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <Button variant="outline" size="sm" asChild>
-            <a href={candidateInfo.linkedIn} target="_blank" rel="noopener noreferrer">
-              <Linkedin className="mr-2 h-4 w-4" />
-              LinkedIn
-            </a>
-          </Button>
-          <Button variant="outline" size="sm" asChild>
-            <a href={candidateInfo.github} target="_blank" rel="noopener noreferrer">
-              <Github className="mr-2 h-4 w-4" />
-              GitHub
-            </a>
-          </Button>
+          {candidateInfo.linkedIn && (
+            <Button variant="outline" size="sm" asChild>
+              <a href={candidateInfo.linkedIn} target="_blank" rel="noopener noreferrer">
+                <Linkedin className="mr-2 h-4 w-4" />
+                LinkedIn
+              </a>
+            </Button>
+          )}
+          {candidateInfo.github && (
+            <Button variant="outline" size="sm" asChild>
+              <a href={candidateInfo.github} target="_blank" rel="noopener noreferrer">
+                <Github className="mr-2 h-4 w-4" />
+                GitHub
+              </a>
+            </Button>
+          )}
           <Button variant="outline" size="sm">
             <Video className="mr-2 h-4 w-4" />
             Recording
