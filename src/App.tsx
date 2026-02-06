@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { ThemeProvider } from "@/hooks/use-theme";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
+import { DashboardLayout } from "@/components/dashboard/DashboardLayout";
 
 // Pages
 import LandingPage from "./pages/LandingPage";
@@ -14,11 +15,18 @@ import InterviewerRegisterPage from "./pages/auth/InterviewerRegisterPage";
 import CandidateRegisterPage from "./pages/auth/CandidateRegisterPage";
 import LoginPage from "./pages/auth/LoginPage";
 import FaceVerificationPage from "./pages/auth/FaceVerificationPage";
-import DashboardPage from "./pages/DashboardPage";
 import CandidateDashboardPage from "./pages/CandidateDashboardPage";
 import InterviewPage from "./pages/InterviewPage";
 import CandidateReportPage from "./pages/CandidateReportPage";
 import NotFound from "./pages/NotFound";
+
+// Dashboard Pages
+import DashboardOverview from "./pages/dashboard/DashboardOverview";
+import PostJobPage from "./pages/dashboard/PostJobPage";
+import ManageJobsPage from "./pages/dashboard/ManageJobsPage";
+import CandidatesPage from "./pages/dashboard/CandidatesPage";
+import AnalyticsPage from "./pages/dashboard/AnalyticsPage";
+import SettingsPage from "./pages/dashboard/SettingsPage";
 
 const queryClient = new QueryClient();
 
@@ -56,15 +64,69 @@ const App = () => (
                 }
               />
 
-              {/* Protected Routes - Interviewer */}
+              {/* Protected Routes - Interviewer Dashboard */}
               <Route
                 path="/dashboard"
                 element={
                   <ProtectedRoute allowedRoles={["interviewer"]}>
-                    <DashboardPage />
+                    <DashboardLayout>
+                      <DashboardOverview />
+                    </DashboardLayout>
                   </ProtectedRoute>
                 }
               />
+              <Route
+                path="/dashboard/jobs"
+                element={
+                  <ProtectedRoute allowedRoles={["interviewer"]}>
+                    <DashboardLayout>
+                      <ManageJobsPage />
+                    </DashboardLayout>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/dashboard/jobs/new"
+                element={
+                  <ProtectedRoute allowedRoles={["interviewer"]}>
+                    <DashboardLayout>
+                      <PostJobPage />
+                    </DashboardLayout>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/dashboard/candidates"
+                element={
+                  <ProtectedRoute allowedRoles={["interviewer"]}>
+                    <DashboardLayout>
+                      <CandidatesPage />
+                    </DashboardLayout>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/dashboard/analytics"
+                element={
+                  <ProtectedRoute allowedRoles={["interviewer"]}>
+                    <DashboardLayout>
+                      <AnalyticsPage />
+                    </DashboardLayout>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/dashboard/settings"
+                element={
+                  <ProtectedRoute allowedRoles={["interviewer"]}>
+                    <DashboardLayout>
+                      <SettingsPage />
+                    </DashboardLayout>
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* Interview & Report Pages */}
               <Route
                 path="/interview"
                 element={

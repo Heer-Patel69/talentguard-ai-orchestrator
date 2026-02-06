@@ -14,6 +14,56 @@ export type Database = {
   }
   public: {
     Tables: {
+      applications: {
+        Row: {
+          ai_confidence: number | null
+          applied_at: string
+          candidate_id: string
+          current_round: number | null
+          fraud_flags: Json | null
+          id: string
+          job_id: string
+          notes: string | null
+          overall_score: number | null
+          status: Database["public"]["Enums"]["application_status"] | null
+          updated_at: string
+        }
+        Insert: {
+          ai_confidence?: number | null
+          applied_at?: string
+          candidate_id: string
+          current_round?: number | null
+          fraud_flags?: Json | null
+          id?: string
+          job_id: string
+          notes?: string | null
+          overall_score?: number | null
+          status?: Database["public"]["Enums"]["application_status"] | null
+          updated_at?: string
+        }
+        Update: {
+          ai_confidence?: number | null
+          applied_at?: string
+          candidate_id?: string
+          current_round?: number | null
+          fraud_flags?: Json | null
+          id?: string
+          job_id?: string
+          notes?: string | null
+          overall_score?: number | null
+          status?: Database["public"]["Enums"]["application_status"] | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "applications_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       candidate_profiles: {
         Row: {
           aadhaar_back_url: string | null
@@ -71,6 +121,44 @@ export type Database = {
         }
         Relationships: []
       }
+      decision_overrides: {
+        Row: {
+          application_id: string
+          created_at: string
+          id: string
+          interviewer_id: string
+          new_status: Database["public"]["Enums"]["application_status"]
+          original_status: Database["public"]["Enums"]["application_status"]
+          reason: string
+        }
+        Insert: {
+          application_id: string
+          created_at?: string
+          id?: string
+          interviewer_id: string
+          new_status: Database["public"]["Enums"]["application_status"]
+          original_status: Database["public"]["Enums"]["application_status"]
+          reason: string
+        }
+        Update: {
+          application_id?: string
+          created_at?: string
+          id?: string
+          interviewer_id?: string
+          new_status?: Database["public"]["Enums"]["application_status"]
+          original_status?: Database["public"]["Enums"]["application_status"]
+          reason?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "decision_overrides_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "applications"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       interviewer_profiles: {
         Row: {
           budget_currency: string | null
@@ -125,6 +213,120 @@ export type Database = {
         }
         Relationships: []
       }
+      job_rounds: {
+        Row: {
+          ai_generate_questions: boolean | null
+          created_at: string
+          custom_questions: Json | null
+          duration_minutes: number | null
+          id: string
+          job_id: string
+          round_number: number
+          round_type: Database["public"]["Enums"]["round_type"]
+        }
+        Insert: {
+          ai_generate_questions?: boolean | null
+          created_at?: string
+          custom_questions?: Json | null
+          duration_minutes?: number | null
+          id?: string
+          job_id: string
+          round_number: number
+          round_type: Database["public"]["Enums"]["round_type"]
+        }
+        Update: {
+          ai_generate_questions?: boolean | null
+          created_at?: string
+          custom_questions?: Json | null
+          duration_minutes?: number | null
+          id?: string
+          job_id?: string
+          round_number?: number
+          round_type?: Database["public"]["Enums"]["round_type"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "job_rounds_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      jobs: {
+        Row: {
+          application_deadline: string | null
+          auto_shortlist_count: number | null
+          auto_shortlist_enabled: boolean | null
+          created_at: string
+          description: string | null
+          experience_level: Database["public"]["Enums"]["experience_level"]
+          field: string
+          id: string
+          interviewer_id: string
+          location_city: string | null
+          location_type: Database["public"]["Enums"]["location_type"] | null
+          num_rounds: number | null
+          required_skills: string[] | null
+          salary_currency: string | null
+          salary_max: number | null
+          salary_min: number | null
+          status: Database["public"]["Enums"]["job_status"] | null
+          title: string
+          toughness_level: Database["public"]["Enums"]["toughness_level"] | null
+          updated_at: string
+        }
+        Insert: {
+          application_deadline?: string | null
+          auto_shortlist_count?: number | null
+          auto_shortlist_enabled?: boolean | null
+          created_at?: string
+          description?: string | null
+          experience_level: Database["public"]["Enums"]["experience_level"]
+          field: string
+          id?: string
+          interviewer_id: string
+          location_city?: string | null
+          location_type?: Database["public"]["Enums"]["location_type"] | null
+          num_rounds?: number | null
+          required_skills?: string[] | null
+          salary_currency?: string | null
+          salary_max?: number | null
+          salary_min?: number | null
+          status?: Database["public"]["Enums"]["job_status"] | null
+          title: string
+          toughness_level?:
+            | Database["public"]["Enums"]["toughness_level"]
+            | null
+          updated_at?: string
+        }
+        Update: {
+          application_deadline?: string | null
+          auto_shortlist_count?: number | null
+          auto_shortlist_enabled?: boolean | null
+          created_at?: string
+          description?: string | null
+          experience_level?: Database["public"]["Enums"]["experience_level"]
+          field?: string
+          id?: string
+          interviewer_id?: string
+          location_city?: string | null
+          location_type?: Database["public"]["Enums"]["location_type"] | null
+          num_rounds?: number | null
+          required_skills?: string[] | null
+          salary_currency?: string | null
+          salary_max?: number | null
+          salary_min?: number | null
+          status?: Database["public"]["Enums"]["job_status"] | null
+          title?: string
+          toughness_level?:
+            | Database["public"]["Enums"]["toughness_level"]
+            | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
@@ -151,6 +353,66 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      round_results: {
+        Row: {
+          ai_explanation: string | null
+          ai_feedback: string | null
+          application_id: string
+          code_submissions: Json | null
+          completed_at: string | null
+          created_at: string
+          fraud_details: Json | null
+          fraud_detected: boolean | null
+          id: string
+          recording_url: string | null
+          round_id: string
+          score: number | null
+        }
+        Insert: {
+          ai_explanation?: string | null
+          ai_feedback?: string | null
+          application_id: string
+          code_submissions?: Json | null
+          completed_at?: string | null
+          created_at?: string
+          fraud_details?: Json | null
+          fraud_detected?: boolean | null
+          id?: string
+          recording_url?: string | null
+          round_id: string
+          score?: number | null
+        }
+        Update: {
+          ai_explanation?: string | null
+          ai_feedback?: string | null
+          application_id?: string
+          code_submissions?: Json | null
+          completed_at?: string | null
+          created_at?: string
+          fraud_details?: Json | null
+          fraud_detected?: boolean | null
+          id?: string
+          recording_url?: string | null
+          round_id?: string
+          score?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "round_results_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "applications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "round_results_round_id_fkey"
+            columns: ["round_id"]
+            isOneToOne: false
+            referencedRelation: "job_rounds"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_roles: {
         Row: {
@@ -192,7 +454,16 @@ export type Database = {
     }
     Enums: {
       app_role: "interviewer" | "candidate"
+      application_status:
+        | "applied"
+        | "screening"
+        | "interviewing"
+        | "shortlisted"
+        | "rejected"
+        | "hired"
+        | "withdrawn"
       company_age: "less_than_1" | "1_to_5" | "5_to_10" | "more_than_10"
+      experience_level: "fresher" | "junior" | "mid" | "senior" | "architect"
       industry:
         | "it"
         | "finance"
@@ -204,6 +475,15 @@ export type Database = {
         | "consulting"
         | "legal"
         | "other"
+      job_status: "draft" | "active" | "closed" | "paused"
+      location_type: "remote" | "hybrid" | "onsite"
+      round_type:
+        | "mcq"
+        | "coding"
+        | "system_design"
+        | "behavioral"
+        | "live_ai_interview"
+      toughness_level: "easy" | "medium" | "hard" | "expert"
       verification_status: "pending" | "verified" | "rejected" | "manual_review"
     }
     CompositeTypes: {
@@ -333,7 +613,17 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["interviewer", "candidate"],
+      application_status: [
+        "applied",
+        "screening",
+        "interviewing",
+        "shortlisted",
+        "rejected",
+        "hired",
+        "withdrawn",
+      ],
       company_age: ["less_than_1", "1_to_5", "5_to_10", "more_than_10"],
+      experience_level: ["fresher", "junior", "mid", "senior", "architect"],
       industry: [
         "it",
         "finance",
@@ -346,6 +636,16 @@ export const Constants = {
         "legal",
         "other",
       ],
+      job_status: ["draft", "active", "closed", "paused"],
+      location_type: ["remote", "hybrid", "onsite"],
+      round_type: [
+        "mcq",
+        "coding",
+        "system_design",
+        "behavioral",
+        "live_ai_interview",
+      ],
+      toughness_level: ["easy", "medium", "hard", "expert"],
       verification_status: ["pending", "verified", "rejected", "manual_review"],
     },
   },
