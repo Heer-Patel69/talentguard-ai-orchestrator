@@ -2,7 +2,14 @@ import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
 import { GlassCard } from "@/components/ui/glass-card";
 import { Button } from "@/components/ui/button";
-import { TrustScoreBadge, RiskMeter } from "@/components/ui/trust-indicators";
+import { TrustScoreBadge } from "@/components/ui/trust-indicators";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  useDashboardStats,
+  useHiringFunnel,
+  useLiveInterviews,
+  useRecentActivity,
+} from "@/hooks/useDashboardStats";
 import {
   Users,
   Briefcase,
@@ -13,7 +20,6 @@ import {
   Clock,
   Play,
   Eye,
-  MoreVertical,
   ArrowUpRight,
   Target,
   Shield,
@@ -34,72 +40,7 @@ import {
   Legend,
 } from "recharts";
 
-// Mock data
-const stats = [
-  { 
-    icon: Briefcase, 
-    label: "Jobs Posted", 
-    value: "12", 
-    change: "+3",
-    trend: "up",
-    color: "text-primary"
-  },
-  { 
-    icon: Users, 
-    label: "Total Candidates", 
-    value: "248", 
-    change: "+42",
-    trend: "up",
-    color: "text-success"
-  },
-  { 
-    icon: CheckCircle2, 
-    label: "Interviews Completed", 
-    value: "156", 
-    change: "+28",
-    trend: "up",
-    color: "text-info"
-  },
-  { 
-    icon: Target, 
-    label: "Avg AI Confidence", 
-    value: "87%", 
-    change: "+5%",
-    trend: "up",
-    color: "text-warning"
-  },
-  { 
-    icon: AlertTriangle, 
-    label: "Fraud Alerts", 
-    value: "7", 
-    change: "-2",
-    trend: "down",
-    color: "text-danger"
-  },
-  { 
-    icon: Shield, 
-    label: "Verified Candidates", 
-    value: "189", 
-    change: "+15",
-    trend: "up",
-    color: "text-success"
-  },
-];
-
-const funnelData = [
-  { stage: "Applied", count: 248, fill: "hsl(var(--primary))" },
-  { stage: "Screening", count: 180, fill: "hsl(var(--primary) / 0.8)" },
-  { stage: "Technical", count: 95, fill: "hsl(var(--primary) / 0.6)" },
-  { stage: "Final", count: 42, fill: "hsl(var(--primary) / 0.4)" },
-  { stage: "Hired", count: 18, fill: "hsl(var(--success))" },
-];
-
-const passFailData = [
-  { name: "Passed", value: 156, color: "hsl(var(--success))" },
-  { name: "Failed", value: 72, color: "hsl(var(--danger))" },
-  { name: "Pending", value: 20, color: "hsl(var(--warning))" },
-];
-
+// Static field distribution data (could be fetched from DB later)
 const fieldDistribution = [
   { field: "Frontend", candidates: 45 },
   { field: "Backend", candidates: 38 },
@@ -119,41 +60,73 @@ const weeklyTrend = [
   { day: "Sun", interviews: 5, hires: 1 },
 ];
 
-const liveInterviews = [
-  {
-    id: 1,
-    name: "Sarah Chen",
-    role: "Senior Frontend Developer",
-    stage: "Technical Round",
-    trustScore: 94,
-    timeElapsed: "23:45",
-  },
-  {
-    id: 2,
-    name: "Michael Park",
-    role: "Backend Engineer",
-    stage: "System Design",
-    trustScore: 87,
-    timeElapsed: "45:12",
-  },
-  {
-    id: 3,
-    name: "Emily Rodriguez",
-    role: "Full Stack Developer",
-    stage: "Behavioral",
-    trustScore: 56,
-    timeElapsed: "18:30",
-  },
-];
-
-const recentActivity = [
-  { type: "hired", name: "John Smith", role: "DevOps Engineer", time: "2h ago" },
-  { type: "interview", name: "Lisa Wang", role: "Data Scientist", time: "3h ago" },
-  { type: "applied", name: "Alex Johnson", role: "ML Engineer", time: "4h ago" },
-  { type: "flagged", name: "Unknown", role: "Backend Developer", time: "5h ago" },
-];
+function cn(...classes: (string | boolean | undefined)[]) {
+  return classes.filter(Boolean).join(" ");
+}
 
 export default function DashboardOverview() {
+  const { data: stats, isLoading: statsLoading } = useDashboardStats();
+  const { data: funnelData, isLoading: funnelLoading } = useHiringFunnel();
+  const { data: liveInterviews, isLoading: interviewsLoading } = useLiveInterviews();
+  const { data: recentActivity, isLoading: activityLoading } = useRecentActivity();
+
+  const statsConfig = [
+    { 
+      icon: Briefcase, 
+      label: "Jobs Posted", 
+      value: stats?.jobsPosted?.toString() || "0", 
+      change: "+0",
+      trend: "up",
+      color: "text-primary"
+    },
+    { 
+      icon: Users, 
+      label: "Total Candidates", 
+      value: stats?.totalCandidates?.toString() || "0", 
+      change: "+0",
+      trend: "up",
+      color: "text-success"
+    },
+    { 
+      icon: CheckCircle2, 
+      label: "Interviews Completed", 
+      value: stats?.interviewsCompleted?.toString() || "0", 
+      change: "+0",
+      trend: "up",
+      color: "text-info"
+    },
+    { 
+      icon: Target, 
+      label: "Avg AI Confidence", 
+      value: `${stats?.avgAIConfidence || 0}%`, 
+      change: "+0%",
+      trend: "up",
+      color: "text-warning"
+    },
+    { 
+      icon: AlertTriangle, 
+      label: "Fraud Alerts", 
+      value: stats?.fraudAlerts?.toString() || "0", 
+      change: "0",
+      trend: "down",
+      color: "text-danger"
+    },
+    { 
+      icon: Shield, 
+      label: "Verified Candidates", 
+      value: stats?.verifiedCandidates?.toString() || "0", 
+      change: "+0",
+      trend: "up",
+      color: "text-success"
+    },
+  ];
+
+  const passFailData = [
+    { name: "Completed", value: stats?.interviewsCompleted || 0, color: "hsl(var(--success))" },
+    { name: "In Progress", value: (stats?.totalCandidates || 0) - (stats?.interviewsCompleted || 0), color: "hsl(var(--warning))" },
+    { name: "Fraud Flagged", value: stats?.fraudAlerts || 0, color: "hsl(var(--danger))" },
+  ];
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -179,37 +152,47 @@ export default function DashboardOverview() {
 
       {/* Stats Grid */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-        {stats.map((stat, index) => (
-          <motion.div
-            key={stat.label}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: index * 0.05 }}
-          >
-            <GlassCard className="relative overflow-hidden">
-              <div className="flex items-start justify-between">
-                <div className={cn("rounded-lg bg-secondary p-2", stat.color)}>
-                  <stat.icon className="h-5 w-5" />
-                </div>
-                <div className={cn(
-                  "flex items-center gap-1 text-xs font-medium",
-                  stat.trend === "up" ? "text-success" : "text-danger"
-                )}>
-                  {stat.trend === "up" ? (
-                    <TrendingUp className="h-3 w-3" />
-                  ) : (
-                    <TrendingDown className="h-3 w-3" />
-                  )}
-                  {stat.change}
-                </div>
-              </div>
-              <div className="mt-3">
-                <div className="text-2xl font-bold">{stat.value}</div>
-                <div className="text-sm text-muted-foreground">{stat.label}</div>
-              </div>
+        {statsLoading ? (
+          Array.from({ length: 6 }).map((_, i) => (
+            <GlassCard key={i} className="relative overflow-hidden">
+              <Skeleton className="h-5 w-10 mb-3" />
+              <Skeleton className="h-8 w-16 mb-1" />
+              <Skeleton className="h-4 w-24" />
             </GlassCard>
-          </motion.div>
-        ))}
+          ))
+        ) : (
+          statsConfig.map((stat, index) => (
+            <motion.div
+              key={stat.label}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: index * 0.05 }}
+            >
+              <GlassCard className="relative overflow-hidden">
+                <div className="flex items-start justify-between">
+                  <div className={cn("rounded-lg bg-secondary p-2", stat.color)}>
+                    <stat.icon className="h-5 w-5" />
+                  </div>
+                  <div className={cn(
+                    "flex items-center gap-1 text-xs font-medium",
+                    stat.trend === "up" ? "text-success" : "text-danger"
+                  )}>
+                    {stat.trend === "up" ? (
+                      <TrendingUp className="h-3 w-3" />
+                    ) : (
+                      <TrendingDown className="h-3 w-3" />
+                    )}
+                    {stat.change}
+                  </div>
+                </div>
+                <div className="mt-3">
+                  <div className="text-2xl font-bold">{stat.value}</div>
+                  <div className="text-sm text-muted-foreground">{stat.label}</div>
+                </div>
+              </GlassCard>
+            </motion.div>
+          ))
+        )}
       </div>
 
       {/* Charts Row */}
@@ -217,25 +200,42 @@ export default function DashboardOverview() {
         {/* Hiring Funnel */}
         <GlassCard className="lg:col-span-1">
           <h3 className="mb-4 text-lg font-semibold">Hiring Funnel</h3>
-          <div className="space-y-3">
-            {funnelData.map((stage, idx) => (
-              <div key={stage.stage}>
-                <div className="mb-1 flex justify-between text-sm">
-                  <span>{stage.stage}</span>
-                  <span className="font-medium">{stage.count}</span>
+          {funnelLoading ? (
+            <div className="space-y-3">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <div key={i}>
+                  <Skeleton className="h-4 w-full mb-1" />
+                  <Skeleton className="h-8 w-full" />
                 </div>
-                <div className="h-8 overflow-hidden rounded-lg bg-secondary">
-                  <motion.div
-                    initial={{ width: 0 }}
-                    animate={{ width: `${(stage.count / funnelData[0].count) * 100}%` }}
-                    transition={{ delay: idx * 0.1, duration: 0.5 }}
-                    className="h-full rounded-lg"
-                    style={{ backgroundColor: stage.fill }}
-                  />
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {(funnelData || []).map((stage, idx) => {
+                const maxCount = funnelData?.[0]?.count || 1;
+                return (
+                  <div key={stage.stage}>
+                    <div className="mb-1 flex justify-between text-sm">
+                      <span>{stage.stage}</span>
+                      <span className="font-medium">{stage.count}</span>
+                    </div>
+                    <div className="h-8 overflow-hidden rounded-lg bg-secondary">
+                      <motion.div
+                        initial={{ width: 0 }}
+                        animate={{ width: `${(stage.count / maxCount) * 100}%` }}
+                        transition={{ delay: idx * 0.1, duration: 0.5 }}
+                        className="h-full rounded-lg bg-primary"
+                        style={{ 
+                          opacity: 1 - (idx * 0.15),
+                          backgroundColor: idx === 4 ? "hsl(var(--success))" : undefined 
+                        }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </GlassCard>
 
         {/* Pass/Fail Ratio */}
@@ -364,78 +364,98 @@ export default function DashboardOverview() {
               <Link to="/dashboard/candidates">View All</Link>
             </Button>
           </div>
-          <div className="space-y-3">
-            {liveInterviews.map((interview) => (
-              <div
-                key={interview.id}
-                className="flex items-center justify-between rounded-lg bg-secondary/50 p-3"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-primary text-sm font-bold">
-                    {interview.name.split(" ").map(n => n[0]).join("")}
+          {interviewsLoading ? (
+            <div className="space-y-3">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <Skeleton key={i} className="h-16 w-full" />
+              ))}
+            </div>
+          ) : (liveInterviews?.length || 0) > 0 ? (
+            <div className="space-y-3">
+              {liveInterviews?.map((interview) => (
+                <div
+                  key={interview.id}
+                  className="flex items-center justify-between rounded-lg bg-secondary/50 p-3"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-primary text-sm font-bold">
+                      {interview.candidateName.split(" ").map(n => n[0]).join("")}
+                    </div>
+                    <div>
+                      <p className="font-medium">{interview.candidateName}</p>
+                      <p className="text-sm text-muted-foreground">{interview.role}</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="font-medium">{interview.name}</p>
-                    <p className="text-sm text-muted-foreground">{interview.role}</p>
+                  <div className="flex items-center gap-3">
+                    <TrustScoreBadge score={interview.trustScore} size="sm" />
+                    <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                      <Clock className="h-3 w-3" />
+                      {interview.timeElapsed}
+                    </div>
+                    <Button variant="outline" size="sm" asChild>
+                      <Link to={`/interview/${interview.id}`}>
+                        <Eye className="mr-1 h-3 w-3" />
+                        Watch
+                      </Link>
+                    </Button>
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
-                  <TrustScoreBadge score={interview.trustScore} size="sm" />
-                  <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                    <Clock className="h-3 w-3" />
-                    {interview.timeElapsed}
-                  </div>
-                  <Button variant="outline" size="sm" asChild>
-                    <Link to={`/interview/${interview.id}`}>
-                      <Eye className="mr-1 h-3 w-3" />
-                      Watch
-                    </Link>
-                  </Button>
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          ) : (
+            <div className="flex h-32 items-center justify-center text-muted-foreground">
+              No active interviews at the moment
+            </div>
+          )}
         </GlassCard>
       </div>
 
       {/* Recent Activity */}
       <GlassCard>
         <h3 className="mb-4 text-lg font-semibold">Recent Activity</h3>
-        <div className="divide-y divide-border">
-          {recentActivity.map((activity, idx) => (
-            <div key={idx} className="flex items-center justify-between py-3">
-              <div className="flex items-center gap-3">
-                <div className={cn(
-                  "flex h-8 w-8 items-center justify-center rounded-full",
-                  activity.type === "hired" && "bg-success/20 text-success",
-                  activity.type === "interview" && "bg-primary/20 text-primary",
-                  activity.type === "applied" && "bg-info/20 text-info",
-                  activity.type === "flagged" && "bg-danger/20 text-danger"
-                )}>
-                  {activity.type === "hired" && <CheckCircle2 className="h-4 w-4" />}
-                  {activity.type === "interview" && <Play className="h-4 w-4" />}
-                  {activity.type === "applied" && <Users className="h-4 w-4" />}
-                  {activity.type === "flagged" && <AlertTriangle className="h-4 w-4" />}
+        {activityLoading ? (
+          <div className="space-y-3">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <Skeleton key={i} className="h-12 w-full" />
+            ))}
+          </div>
+        ) : (recentActivity?.length || 0) > 0 ? (
+          <div className="divide-y divide-border">
+            {recentActivity?.map((activity, idx) => (
+              <div key={idx} className="flex items-center justify-between py-3">
+                <div className="flex items-center gap-3">
+                  <div className={cn(
+                    "flex h-8 w-8 items-center justify-center rounded-full",
+                    activity.type === "hired" && "bg-success/20 text-success",
+                    activity.type === "interview" && "bg-primary/20 text-primary",
+                    activity.type === "applied" && "bg-info/20 text-info",
+                    activity.type === "flagged" && "bg-danger/20 text-danger"
+                  )}>
+                    {activity.type === "hired" && <CheckCircle2 className="h-4 w-4" />}
+                    {activity.type === "interview" && <Play className="h-4 w-4" />}
+                    {activity.type === "applied" && <Users className="h-4 w-4" />}
+                    {activity.type === "flagged" && <AlertTriangle className="h-4 w-4" />}
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">
+                      {activity.type === "hired" && `${activity.name} was hired`}
+                      {activity.type === "interview" && `${activity.name} is interviewing`}
+                      {activity.type === "applied" && `${activity.name} applied`}
+                      {activity.type === "flagged" && `${activity.name} was flagged`}
+                    </p>
+                    <p className="text-xs text-muted-foreground">{activity.role}</p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-sm font-medium">
-                    {activity.type === "hired" && `${activity.name} was hired`}
-                    {activity.type === "interview" && `${activity.name} completed interview`}
-                    {activity.type === "applied" && `${activity.name} applied`}
-                    {activity.type === "flagged" && "Fraud alert detected"}
-                  </p>
-                  <p className="text-xs text-muted-foreground">{activity.role}</p>
-                </div>
+                <span className="text-sm text-muted-foreground">{activity.time}</span>
               </div>
-              <span className="text-sm text-muted-foreground">{activity.time}</span>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        ) : (
+          <div className="flex h-24 items-center justify-center text-muted-foreground">
+            No recent activity
+          </div>
+        )}
       </GlassCard>
     </div>
   );
-}
-
-function cn(...classes: (string | boolean | undefined)[]) {
-  return classes.filter(Boolean).join(" ");
 }

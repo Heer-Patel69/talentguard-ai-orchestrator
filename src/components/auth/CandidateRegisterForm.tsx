@@ -223,31 +223,39 @@ export function CandidateRegisterForm() {
 
       const userId = authData.user.id;
 
-      // 2. Create all records in parallel for speed
+      // 2. Upload resume first (fast operation)
       const resumeExt = resumeFile.name.split(".").pop();
       const resumePath = `${userId}/resume.${resumeExt}`;
+      
+      const resumeResult = await supabase.storage.from("resumes").upload(resumePath, resumeFile);
+      if (resumeResult.error) throw resumeResult.error;
 
-      const [roleResult, profileResult, resumeResult] = await Promise.all([
-        // Create user role
-        supabase.from("user_roles").insert({ user_id: userId, role: "candidate" }),
-        // Create base profile
+      // 3. Create user role FIRST (critical for login) with retry
+      let roleCreated = false;
+      for (let attempt = 0; attempt < 3 && !roleCreated; attempt++) {
+        const { error: roleError } = await supabase
+          .from("user_roles")
+          .insert({ user_id: userId, role: "candidate" });
+        
+        if (!roleError) {
+          roleCreated = true;
+        } else if (roleError.code !== "23505") { // Not a duplicate key error
+          console.error(`Role creation attempt ${attempt + 1} failed:`, roleError);
+          if (attempt === 2) throw roleError;
+          await new Promise(r => setTimeout(r, 100)); // Brief retry delay
+        } else {
+          roleCreated = true; // Already exists
+        }
+      }
+
+      // 4. Create profiles in parallel (non-critical for login)
+      const [profileResult] = await Promise.all([
         supabase.from("profiles").insert({
           user_id: userId,
           full_name: data.fullName,
           email: data.email,
         }),
-        // Upload resume
-        supabase.storage.from("resumes").upload(resumePath, resumeFile),
-      ]);
-
-      if (roleResult.error) throw roleResult.error;
-      if (profileResult.error) throw profileResult.error;
-      if (resumeResult.error) throw resumeResult.error;
-
-      // 3. Create candidate profile with parsed data
-      const { error: candidateError } = await supabase
-        .from("candidate_profiles")
-        .insert({
+        supabase.from("candidate_profiles").insert({
           user_id: userId,
           phone_number: data.phoneNumber,
           github_url: data.githubUrl,
@@ -259,9 +267,10 @@ export function CandidateRegisterForm() {
           education: parsedResumeData?.education || null,
           projects: parsedResumeData?.projects || null,
           certifications: parsedResumeData?.certifications || null,
-        });
+        }),
+      ]);
 
-      if (candidateError) throw candidateError;
+      if (profileResult.error) throw profileResult.error;
 
       // 4. Trigger profile analysis in background (non-blocking)
       supabase.functions.invoke("analyze-profile", {

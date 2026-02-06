@@ -41,6 +41,11 @@ interface ProfileAnalysis {
     profile_strength: string;
     estimated_experience: string;
   } | null;
+  suggested_job_preferences: {
+    fields: string[];
+    experience_level: string;
+    suggested_roles: string[];
+  } | null;
 }
 
 Deno.serve(async (req) => {
@@ -69,6 +74,7 @@ Deno.serve(async (req) => {
       skills: [],
       github_analysis: null,
       linkedin_analysis: null,
+      suggested_job_preferences: null,
     };
 
     // Analyze GitHub profile
@@ -102,10 +108,13 @@ Deno.serve(async (req) => {
       analysis.profile_score = analysis.linkedin_score;
     }
 
-    // Use AI to enhance skills extraction and analysis
+    // Use AI to enhance skills extraction and get job suggestions
     const aiAnalysis = await getAIEnhancedAnalysis(analysis, github_url, linkedin_url);
     if (aiAnalysis.skills.length > 0) {
       analysis.skills = [...new Set([...analysis.skills, ...aiAnalysis.skills])];
+    }
+    if (aiAnalysis.suggested_job_preferences) {
+      analysis.suggested_job_preferences = aiAnalysis.suggested_job_preferences;
     }
 
     // Update candidate profile
@@ -118,6 +127,7 @@ Deno.serve(async (req) => {
         skills: analysis.skills,
         github_analysis: analysis.github_analysis,
         linkedin_analysis: analysis.linkedin_analysis,
+        suggested_job_preferences: analysis.suggested_job_preferences,
         profile_analyzed_at: new Date().toISOString(),
       })
       .eq("user_id", candidate_id);
@@ -276,21 +286,42 @@ async function getAIEnhancedAnalysis(
   currentAnalysis: ProfileAnalysis,
   github_url: string | null,
   linkedin_url: string | null
-) {
+): Promise<{ skills: string[]; suggested_job_preferences: ProfileAnalysis['suggested_job_preferences'] }> {
   try {
     const lovableApiKey = Deno.env.get("LOVABLE_API_KEY");
     if (!lovableApiKey) {
-      return { skills: [] };
+      return { skills: [], suggested_job_preferences: null };
     }
 
-    const prompt = `Based on the following GitHub analysis, extract a list of technical skills this developer likely possesses. Only return skills that are commonly recognized in software development.
+    const prompt = `You are a career advisor analyzing a developer's profile. Based on the following data, provide:
+1. A comprehensive list of technical skills
+2. Suggested job preferences including fields, experience level, and specific roles
 
 GitHub Analysis:
 - Top Languages: ${currentAnalysis.github_analysis?.top_languages?.join(", ") || "None"}
 - Repository Count: ${currentAnalysis.github_analysis?.repos_count || 0}
+- Total Stars: ${currentAnalysis.github_analysis?.total_stars || 0}
 - Activity Level: ${currentAnalysis.github_analysis?.activity_level || "unknown"}
+- Account Age: ${currentAnalysis.github_analysis?.account_age_years || 0} years
+- Followers: ${currentAnalysis.github_analysis?.followers || 0}
 
-Return a JSON object with a "skills" array containing 5-15 relevant technical skills based on the languages and activity. Example: {"skills": ["JavaScript", "React", "Node.js", "Git"]}`;
+GitHub Score: ${currentAnalysis.github_score}
+LinkedIn Score: ${currentAnalysis.linkedin_score}
+
+Return a JSON object with this exact structure:
+{
+  "skills": ["Array of 10-20 technical skills based on languages, including frameworks and tools commonly used with those languages"],
+  "suggested_job_preferences": {
+    "fields": ["Top 2-3 job fields like 'Frontend Development', 'Backend Development', 'Full Stack', 'DevOps', 'AI/ML', 'Data Science', 'Mobile Development'],
+    "experience_level": "One of: 'entry', 'mid', 'senior', 'lead' based on account age and activity",
+    "suggested_roles": ["3-5 specific job titles like 'React Developer', 'Node.js Engineer', 'Python Developer']
+  }
+}
+
+Important:
+- For skills, include the main languages AND their common frameworks/tools
+- For experience_level: entry (0-2 years), mid (2-5 years), senior (5-8 years), lead (8+ years)
+- Base the suggestions on the actual GitHub data provided`;
 
     const response = await fetch("https://api.lovable.dev/api/v1/chat", {
       method: "POST",
@@ -299,14 +330,15 @@ Return a JSON object with a "skills" array containing 5-15 relevant technical sk
         Authorization: `Bearer ${lovableApiKey}`,
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash-lite",
+        model: "google/gemini-2.5-flash",
         messages: [{ role: "user", content: prompt }],
         response_format: { type: "json_object" },
       }),
     });
 
     if (!response.ok) {
-      return { skills: [] };
+      console.error("AI API error:", response.status);
+      return { skills: [], suggested_job_preferences: null };
     }
 
     const data = await response.json();
@@ -315,15 +347,19 @@ Return a JSON object with a "skills" array containing 5-15 relevant technical sk
     if (content) {
       try {
         const parsed = JSON.parse(content);
-        return { skills: parsed.skills || [] };
-      } catch {
-        return { skills: [] };
+        return { 
+          skills: Array.isArray(parsed.skills) ? parsed.skills : [],
+          suggested_job_preferences: parsed.suggested_job_preferences || null
+        };
+      } catch (parseError) {
+        console.error("JSON parse error:", parseError);
+        return { skills: [], suggested_job_preferences: null };
       }
     }
 
-    return { skills: [] };
+    return { skills: [], suggested_job_preferences: null };
   } catch (error) {
     console.error("AI analysis error:", error);
-    return { skills: [] };
+    return { skills: [], suggested_job_preferences: null };
   }
 }
