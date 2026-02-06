@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useForm } from "react-hook-form";
@@ -18,7 +18,6 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-  FormDescription,
 } from "@/components/ui/form";
 import {
   User,
@@ -33,8 +32,11 @@ import {
   ArrowLeft,
   ArrowRight,
   Check,
+  Sparkles,
+  AlertCircle,
 } from "lucide-react";
 import { Link } from "react-router-dom";
+import { Badge } from "@/components/ui/badge";
 
 const formSchema = z.object({
   fullName: z.string().min(2, "Full name must be at least 2 characters"),
@@ -57,12 +59,36 @@ const formSchema = z.object({
 
 type FormData = z.infer<typeof formSchema>;
 
+interface ResumeData {
+  fullName: string | null;
+  email: string | null;
+  phone: string | null;
+  skills: string[];
+  experience_years: number;
+  education: Array<{
+    degree: string;
+    institution: string;
+    year: number;
+    field?: string;
+  }>;
+  projects: Array<{
+    name: string;
+    description: string;
+    technologies: string[];
+  }>;
+  certifications: string[];
+  summary: string | null;
+}
+
 const steps = ["Account", "Professional"];
 
 export function CandidateRegisterForm() {
   const [currentStep, setCurrentStep] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [resumeFile, setResumeFile] = useState<File | null>(null);
+  const [isParsingResume, setIsParsingResume] = useState(false);
+  const [parsedResumeData, setParsedResumeData] = useState<ResumeData | null>(null);
+  const [extractedSkills, setExtractedSkills] = useState<string[]>([]);
   const { toast } = useToast();
   const navigate = useNavigate();
 
@@ -79,7 +105,68 @@ export function CandidateRegisterForm() {
     },
   });
 
-  const handleFileChange = (
+  // Parse resume using AI
+  const parseResume = useCallback(async (file: File) => {
+    setIsParsingResume(true);
+    
+    try {
+      // Read file as base64
+      const reader = new FileReader();
+      const base64Promise = new Promise<string>((resolve, reject) => {
+        reader.onload = () => {
+          const result = reader.result as string;
+          const base64 = result.split(',')[1];
+          resolve(base64);
+        };
+        reader.onerror = reject;
+      });
+      reader.readAsDataURL(file);
+      const base64Content = await base64Promise;
+
+      // Call AI to parse resume directly
+      const response = await supabase.functions.invoke("parse-resume-direct", {
+        body: { base64Content },
+      });
+
+      if (response.error) {
+        throw new Error(response.error.message || "Failed to parse resume");
+      }
+
+      const data = response.data?.data as ResumeData;
+      
+      if (data) {
+        setParsedResumeData(data);
+        setExtractedSkills(data.skills || []);
+
+        // Auto-fill form fields
+        if (data.fullName && !form.getValues("fullName")) {
+          form.setValue("fullName", data.fullName);
+        }
+        if (data.email && !form.getValues("email")) {
+          form.setValue("email", data.email);
+        }
+        if (data.phone && !form.getValues("phoneNumber")) {
+          form.setValue("phoneNumber", data.phone);
+        }
+
+        toast({
+          title: "Resume parsed successfully!",
+          description: `Extracted ${data.skills?.length || 0} skills and ${data.education?.length || 0} education entries.`,
+        });
+      }
+    } catch (error: any) {
+      console.error("Resume parsing error:", error);
+      toast({
+        title: "Resume parsing failed",
+        description: "We'll analyze your resume after registration.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsParsingResume(false);
+    }
+  }, [form, toast]);
+
+  const handleFileChange = async (
     e: React.ChangeEvent<HTMLInputElement>,
     type: "resume"
   ) => {
@@ -105,6 +192,9 @@ export function CandidateRegisterForm() {
     }
 
     setResumeFile(file);
+    
+    // Automatically parse the resume
+    await parseResume(file);
   };
 
   const onSubmit = async (data: FormData) => {
@@ -133,32 +223,28 @@ export function CandidateRegisterForm() {
 
       const userId = authData.user.id;
 
-      // 2. Create user role
-      const { error: roleError } = await supabase
-        .from("user_roles")
-        .insert({ user_id: userId, role: "candidate" });
+      // 2. Create all records in parallel for speed
+      const resumeExt = resumeFile.name.split(".").pop();
+      const resumePath = `${userId}/resume.${resumeExt}`;
 
-      if (roleError) throw roleError;
-
-      // 3. Create base profile
-      const { error: profileError } = await supabase
-        .from("profiles")
-        .insert({
+      const [roleResult, profileResult, resumeResult] = await Promise.all([
+        // Create user role
+        supabase.from("user_roles").insert({ user_id: userId, role: "candidate" }),
+        // Create base profile
+        supabase.from("profiles").insert({
           user_id: userId,
           full_name: data.fullName,
           email: data.email,
-        });
+        }),
+        // Upload resume
+        supabase.storage.from("resumes").upload(resumePath, resumeFile),
+      ]);
 
-      if (profileError) throw profileError;
+      if (roleResult.error) throw roleResult.error;
+      if (profileResult.error) throw profileResult.error;
+      if (resumeResult.error) throw resumeResult.error;
 
-      // 4. Upload files
-      const resumeExt = resumeFile.name.split(".").pop();
-      const { error: resumeError } = await supabase.storage
-        .from("resumes")
-        .upload(`${userId}/resume.${resumeExt}`, resumeFile);
-      if (resumeError) throw resumeError;
-
-      // 5. Create candidate profile and trigger profile analysis
+      // 3. Create candidate profile with parsed data
       const { error: candidateError } = await supabase
         .from("candidate_profiles")
         .insert({
@@ -166,24 +252,29 @@ export function CandidateRegisterForm() {
           phone_number: data.phoneNumber,
           github_url: data.githubUrl,
           linkedin_url: data.linkedinUrl,
-          resume_url: `${userId}/resume.${resumeExt}`,
-          verification_status: "verified", // Auto-verified since Aadhaar is skipped
+          resume_url: resumePath,
+          verification_status: "verified",
+          skills: extractedSkills,
+          experience_years: parsedResumeData?.experience_years || null,
+          education: parsedResumeData?.education || null,
+          projects: parsedResumeData?.projects || null,
+          certifications: parsedResumeData?.certifications || null,
         });
 
       if (candidateError) throw candidateError;
 
-      // Trigger profile analysis in background
+      // 4. Trigger profile analysis in background (non-blocking)
       supabase.functions.invoke("analyze-profile", {
         body: {
           github_url: data.githubUrl,
           linkedin_url: data.linkedinUrl,
           candidate_id: userId,
         },
-      }).catch(console.error); // Don't block registration
+      }).catch(console.error);
 
       toast({
         title: "Registration successful!",
-        description: "Your profile is being analyzed. You can now sign in and start applying for jobs!",
+        description: "Your profile is ready. You can now sign in and start applying for jobs!",
       });
 
       navigate("/login");
@@ -202,9 +293,7 @@ export function CandidateRegisterForm() {
   const nextStep = async () => {
     const fieldsToValidate = currentStep === 0 
       ? ["fullName", "phoneNumber", "email", "password", "confirmPassword"] as const
-      : currentStep === 1 
-      ? ["githubUrl", "linkedinUrl"] as const
-      : [];
+      : ["githubUrl", "linkedinUrl"] as const;
 
     const result = await form.trigger(fieldsToValidate);
     if (result) setCurrentStep((prev) => Math.min(prev + 1, steps.length - 1));
@@ -259,6 +348,86 @@ export function CandidateRegisterForm() {
                 <User className="h-5 w-5 text-success" />
                 Personal Details
               </h2>
+
+              {/* Resume Upload - First for auto-fill */}
+              <div className="mb-6">
+                <Label className="flex items-center gap-2">
+                  <FileText className="h-4 w-4" />
+                  Resume (PDF only, max 5MB)
+                  <Badge variant="secondary" className="ml-2">
+                    <Sparkles className="h-3 w-3 mr-1" />
+                    AI Auto-fill
+                  </Badge>
+                </Label>
+                <div className="mt-2">
+                  <label className="cursor-pointer block">
+                    <div className={`flex items-center justify-center gap-3 p-6 rounded-lg border-2 border-dashed transition-colors ${
+                      isParsingResume 
+                        ? "border-primary bg-primary/10 animate-pulse" 
+                        : resumeFile 
+                        ? "border-success bg-success/10" 
+                        : "border-border hover:border-primary hover:bg-secondary/50"
+                    }`}>
+                      {isParsingResume ? (
+                        <>
+                          <Loader2 className="h-5 w-5 text-primary animate-spin" />
+                          <span className="text-sm text-primary">Analyzing resume with AI...</span>
+                        </>
+                      ) : resumeFile ? (
+                        <>
+                          <Check className="h-5 w-5 text-success" />
+                          <span className="text-sm">{resumeFile.name}</span>
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="h-5 w-5 text-muted-foreground" />
+                          <span className="text-sm text-muted-foreground">
+                            Upload resume to auto-fill your details
+                          </span>
+                        </>
+                      )}
+                    </div>
+                    <input
+                      type="file"
+                      accept=".pdf"
+                      className="hidden"
+                      onChange={(e) => handleFileChange(e, "resume")}
+                      disabled={isParsingResume}
+                    />
+                  </label>
+                </div>
+
+                {/* Show extracted skills preview */}
+                {extractedSkills.length > 0 && (
+                  <motion.div 
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="mt-4 p-4 rounded-lg bg-success/10 border border-success/20"
+                  >
+                    <div className="flex items-center gap-2 mb-2">
+                      <Check className="h-4 w-4 text-success" />
+                      <span className="text-sm font-medium text-success">Skills extracted from resume</span>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {extractedSkills.slice(0, 10).map((skill, idx) => (
+                        <Badge key={idx} variant="outline" className="text-xs">
+                          {skill}
+                        </Badge>
+                      ))}
+                      {extractedSkills.length > 10 && (
+                        <Badge variant="secondary" className="text-xs">
+                          +{extractedSkills.length - 10} more
+                        </Badge>
+                      )}
+                    </div>
+                    {parsedResumeData?.experience_years && parsedResumeData.experience_years > 0 && (
+                      <p className="text-xs text-muted-foreground mt-2">
+                        Experience: ~{parsedResumeData.experience_years} years
+                      </p>
+                    )}
+                  </motion.div>
+                )}
+              </div>
 
               <FormField
                 control={form.control}
@@ -392,32 +561,29 @@ export function CandidateRegisterForm() {
                 )}
               />
 
-              <div>
-                <Label>Resume (PDF only, max 5MB)</Label>
-                <div className="mt-2">
-                  <label className="cursor-pointer block">
-                    <div className={`flex items-center justify-center gap-3 p-6 rounded-lg border-2 border-dashed transition-colors ${resumeFile ? "border-success bg-success/10" : "border-border hover:border-primary hover:bg-secondary/50"}`}>
-                      {resumeFile ? (
-                        <>
-                          <Check className="h-5 w-5 text-success" />
-                          <span className="text-sm">{resumeFile.name}</span>
-                        </>
-                      ) : (
-                        <>
-                          <Upload className="h-5 w-5 text-muted-foreground" />
-                          <span className="text-sm text-muted-foreground">Click to upload resume</span>
-                        </>
-                      )}
-                    </div>
-                    <input
-                      type="file"
-                      accept=".pdf"
-                      className="hidden"
-                      onChange={(e) => handleFileChange(e, "resume")}
-                    />
-                  </label>
+              {/* Resume status */}
+              {resumeFile && (
+                <div className="p-4 rounded-lg bg-muted/50 border">
+                  <div className="flex items-center gap-2">
+                    <FileText className="h-4 w-4 text-success" />
+                    <span className="text-sm font-medium">Resume uploaded: {resumeFile.name}</span>
+                  </div>
+                  {extractedSkills.length > 0 && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {extractedSkills.length} skills will be added to your profile
+                    </p>
+                  )}
                 </div>
-              </div>
+              )}
+
+              {!resumeFile && (
+                <div className="p-4 rounded-lg bg-destructive/10 border border-destructive/20">
+                  <div className="flex items-center gap-2">
+                    <AlertCircle className="h-4 w-4 text-destructive" />
+                    <span className="text-sm text-destructive">Please go back and upload your resume</span>
+                  </div>
+                </div>
+              )}
             </motion.div>
           )}
 
@@ -438,12 +604,21 @@ export function CandidateRegisterForm() {
             )}
 
             {currentStep < steps.length - 1 ? (
-              <Button type="button" onClick={nextStep} className="bg-success hover:bg-success/90">
-                Next
-                <ArrowRight className="ml-2 h-4 w-4" />
+              <Button type="button" onClick={nextStep} className="bg-success hover:bg-success/90" disabled={isParsingResume}>
+                {isParsingResume ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Processing...
+                  </>
+                ) : (
+                  <>
+                    Next
+                    <ArrowRight className="ml-2 h-4 w-4" />
+                  </>
+                )}
               </Button>
             ) : (
-              <Button type="submit" variant="hero" disabled={isLoading} className="bg-success hover:bg-success/90">
+              <Button type="submit" variant="hero" disabled={isLoading || !resumeFile} className="bg-success hover:bg-success/90">
                 {isLoading ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
