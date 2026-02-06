@@ -1,3 +1,7 @@
 export { VideoPanel } from "./VideoPanel";
 export { ConversationPanel, type Message } from "./ConversationPanel";
 export { CodeEditorPanel } from "./CodeEditorPanel";
+export { WhiteboardPanel } from "./WhiteboardPanel";
+export { VoiceRecognition } from "./VoiceRecognition";
+export { TextToSpeech, useTextToSpeech } from "./TextToSpeech";
+export { ProctoringMonitor, useProctoring } from "./ProctoringMonitor";
