@@ -5,3 +5,4 @@ export { WhiteboardPanel } from "./WhiteboardPanel";
 export { VoiceRecognition } from "./VoiceRecognition";
 export { TextToSpeech, useTextToSpeech } from "./TextToSpeech";
 export { ProctoringMonitor, useProctoring } from "./ProctoringMonitor";
+export { RealtimeVoiceAgent, type VoiceMessage } from "./RealtimeVoiceAgent";
