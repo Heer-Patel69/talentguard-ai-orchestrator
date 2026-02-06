@@ -22,6 +22,7 @@ import {
   Search,
   Scale,
   Target,
+  GraduationCap,
 } from "lucide-react";
 
 interface DashboardLayoutProps {
@@ -35,6 +36,7 @@ const sidebarLinks = [
   { href: "/dashboard/candidates", label: "Candidates", icon: Users },
   { href: "/dashboard/analytics", label: "Analytics", icon: BarChart3 },
   { href: "/dashboard/fairness", label: "Fairness", icon: Scale },
+  { href: "/dashboard/learning", label: "AI Learning", icon: GraduationCap },
   { href: "/dashboard/settings", label: "Settings", icon: Settings },
 ];
 
