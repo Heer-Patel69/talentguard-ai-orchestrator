@@ -47,7 +47,7 @@ type InterviewStatus = "preparing" | "in-progress" | "completing" | "completed";
 type InterviewType = "technical" | "system-design" | "behavioral";
 type WorkspaceMode = "code" | "whiteboard" | "conversation";
 
-const INTERVIEW_DURATION = 45 * 60; // 45 minutes in seconds
+const DEFAULT_INTERVIEW_DURATION = 45 * 60; // 45 minutes in seconds
 
 interface ProctoringEvent {
   type: string;
@@ -79,7 +79,8 @@ export default function AIInterviewRoomPage() {
 
   // Timer state
   const [elapsedTime, setElapsedTime] = useState(0);
-  const [remainingTime, setRemainingTime] = useState(INTERVIEW_DURATION);
+  const [interviewDuration, setInterviewDuration] = useState(DEFAULT_INTERVIEW_DURATION);
+  const [remainingTime, setRemainingTime] = useState(DEFAULT_INTERVIEW_DURATION);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Dialog state
@@ -91,6 +92,60 @@ export default function AIInterviewRoomPage() {
   const [questionCount, setQuestionCount] = useState(0);
   const [trustScore, setTrustScore] = useState(100);
   const [proctoringEvents, setProctoringEvents] = useState<ProctoringEvent[]>([]);
+  
+  // Job context for dynamic configuration
+  const [jobContext, setJobContext] = useState<{
+    toughnessLevel: number;
+    jobField: string;
+    jobTitle: string;
+  } | null>(null);
+
+  // Fetch job context on mount
+  useEffect(() => {
+    const fetchJobContext = async () => {
+      const applicationId = searchParams.get("application");
+      if (!applicationId) return;
+
+      try {
+        const { data: application } = await supabase
+          .from("applications")
+          .select(`
+            job_id,
+            current_round,
+            jobs(id, title, field, toughness_level)
+          `)
+          .eq("id", applicationId)
+          .maybeSingle();
+
+        if (application?.jobs) {
+          const job = application.jobs as any;
+          setJobContext({
+            toughnessLevel: job.toughness_level || 3,
+            jobField: job.field || "General",
+            jobTitle: job.title || "Unknown Position",
+          });
+
+          // Fetch round-specific duration
+          const { data: round } = await supabase
+            .from("job_rounds")
+            .select("duration_minutes")
+            .eq("job_id", job.id)
+            .eq("round_number", (application.current_round || 0) + 1)
+            .maybeSingle();
+
+          if (round?.duration_minutes) {
+            const durationSeconds = round.duration_minutes * 60;
+            setInterviewDuration(durationSeconds);
+            setRemainingTime(durationSeconds);
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching job context:", error);
+      }
+    };
+
+    fetchJobContext();
+  }, [searchParams]);
 
   // Start interview timer
   useEffect(() => {
@@ -166,6 +221,15 @@ export default function AIInterviewRoomPage() {
 
   // Send message to AI agent
   const sendToAgent = async (conversationMessages: Array<{ role: string; content: string }>) => {
+    // Map toughness level to string
+    const toughnessMap: Record<number, string> = {
+      1: "easy",
+      2: "easy-medium",
+      3: "medium",
+      4: "medium-hard",
+      5: "hard",
+    };
+    
     const response = await fetch(
       `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/interview-agent`,
       {
@@ -176,11 +240,12 @@ export default function AIInterviewRoomPage() {
         },
         body: JSON.stringify({
           messages: conversationMessages,
-          jobField: interviewType === "technical" ? "Data Structures and Algorithms" : 
-                   interviewType === "system-design" ? "System Design" : "Behavioral",
-          toughnessLevel: "medium",
+          jobField: jobContext?.jobField || (interviewType === "technical" ? "Data Structures and Algorithms" : 
+                   interviewType === "system-design" ? "System Design" : "Behavioral"),
+          toughnessLevel: toughnessMap[jobContext?.toughnessLevel || 3] || "medium",
           currentQuestionIndex: questionCount,
           candidateScore: currentScore,
+          jobTitle: jobContext?.jobTitle,
         }),
       }
     );

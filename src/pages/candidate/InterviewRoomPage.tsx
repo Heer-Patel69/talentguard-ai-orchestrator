@@ -79,6 +79,8 @@ export default function InterviewRoomPage() {
 
   const fetchPendingInterviews = async () => {
     try {
+      console.log("Fetching pending interviews for user:", user!.id);
+      
       // Fetch applications that are not rejected/completed - candidates can proceed with interviews
       const { data: applications, error } = await supabase
         .from("applications")
@@ -87,7 +89,7 @@ export default function InterviewRoomPage() {
           current_round,
           status,
           job_id,
-          job:jobs(
+          jobs!inner(
             id,
             title,
             field,
@@ -97,37 +99,51 @@ export default function InterviewRoomPage() {
         .eq("candidate_id", user!.id)
         .in("status", ["applied", "screening", "interviewing"]);
 
-      if (error) throw error;
+      if (error) {
+        console.error("Error fetching applications:", error);
+        throw error;
+      }
+
+      console.log("Applications found:", applications);
 
       // Get rounds for each application
       const interviews: PendingInterview[] = [];
       
       for (const app of applications || []) {
-        const jobData = app.job as any;
-        if (!jobData) continue;
+        const jobData = (app as any).jobs;
+        console.log("Processing application:", app.id, "job:", jobData);
+        
+        if (!jobData) {
+          console.log("No job data for application:", app.id);
+          continue;
+        }
 
         // Get the next round for this application
         const nextRound = (app.current_round || 0) + 1;
+        console.log("Looking for round:", nextRound, "for job:", jobData.id);
         
-        const { data: rounds } = await supabase
+        const { data: roundData, error: roundError } = await supabase
           .from("job_rounds")
           .select("*")
           .eq("job_id", jobData.id)
           .eq("round_number", nextRound)
           .maybeSingle();
 
-        if (rounds) {
+        console.log("Round query result:", roundData, "error:", roundError);
+
+        if (roundData) {
           interviews.push({
             application_id: app.id,
             job_title: jobData.title,
             job_field: jobData.field || "General",
             round_number: nextRound,
-            round_type: rounds.round_type,
-            duration_minutes: rounds.duration_minutes || 30,
+            round_type: roundData.round_type,
+            duration_minutes: roundData.duration_minutes || 30,
           });
         }
       }
 
+      console.log("Final interviews list:", interviews);
       setPendingInterviews(interviews);
     } catch (error) {
       console.error("Error fetching interviews:", error);
