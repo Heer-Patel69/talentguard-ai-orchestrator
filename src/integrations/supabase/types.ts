@@ -14,6 +14,56 @@ export type Database = {
   }
   public: {
     Tables: {
+      agent_results: {
+        Row: {
+          agent_name: string
+          agent_number: number
+          application_id: string
+          created_at: string
+          decision: string
+          detailed_scores: Json | null
+          id: string
+          raw_data: Json | null
+          reasoning: string | null
+          score: number | null
+          updated_at: string
+        }
+        Insert: {
+          agent_name: string
+          agent_number: number
+          application_id: string
+          created_at?: string
+          decision: string
+          detailed_scores?: Json | null
+          id?: string
+          raw_data?: Json | null
+          reasoning?: string | null
+          score?: number | null
+          updated_at?: string
+        }
+        Update: {
+          agent_name?: string
+          agent_number?: number
+          application_id?: string
+          created_at?: string
+          decision?: string
+          detailed_scores?: Json | null
+          id?: string
+          raw_data?: Json | null
+          reasoning?: string | null
+          score?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_results_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "applications"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ai_learning_metrics: {
         Row: {
           created_at: string
@@ -97,11 +147,14 @@ export type Database = {
       }
       applications: {
         Row: {
+          agent_started_at: string | null
           ai_confidence: number | null
           applied_at: string
           candidate_id: string
+          current_agent: number | null
           current_round: number | null
           fraud_flags: Json | null
+          fraud_risk_score: number | null
           id: string
           job_id: string
           notes: string | null
@@ -110,11 +163,14 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          agent_started_at?: string | null
           ai_confidence?: number | null
           applied_at?: string
           candidate_id: string
+          current_agent?: number | null
           current_round?: number | null
           fraud_flags?: Json | null
+          fraud_risk_score?: number | null
           id?: string
           job_id: string
           notes?: string | null
@@ -123,11 +179,14 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          agent_started_at?: string | null
           ai_confidence?: number | null
           applied_at?: string
           candidate_id?: string
+          current_agent?: number | null
           current_round?: number | null
           fraud_flags?: Json | null
+          fraud_risk_score?: number | null
           id?: string
           job_id?: string
           notes?: string | null
@@ -141,6 +200,47 @@ export type Database = {
             columns: ["job_id"]
             isOneToOne: false
             referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      behavioral_responses: {
+        Row: {
+          ai_evaluation: Json | null
+          application_id: string
+          created_at: string
+          id: string
+          question: string
+          response_audio_url: string | null
+          response_text: string | null
+          scores: Json | null
+        }
+        Insert: {
+          ai_evaluation?: Json | null
+          application_id: string
+          created_at?: string
+          id?: string
+          question: string
+          response_audio_url?: string | null
+          response_text?: string | null
+          scores?: Json | null
+        }
+        Update: {
+          ai_evaluation?: Json | null
+          application_id?: string
+          created_at?: string
+          id?: string
+          question?: string
+          response_audio_url?: string | null
+          response_text?: string | null
+          scores?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "behavioral_responses_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "applications"
             referencedColumns: ["id"]
           },
         ]
@@ -186,7 +286,10 @@ export type Database = {
           aadhaar_back_url: string | null
           aadhaar_front_url: string | null
           aadhaar_number: string | null
+          certifications: Json | null
           created_at: string
+          education: Json | null
+          experience_years: number | null
           github_analysis: Json | null
           github_score: number | null
           github_url: string | null
@@ -198,6 +301,7 @@ export type Database = {
           phone_number: string
           profile_analyzed_at: string | null
           profile_score: number | null
+          projects: Json | null
           resume_url: string | null
           skills: string[] | null
           updated_at: string
@@ -211,7 +315,10 @@ export type Database = {
           aadhaar_back_url?: string | null
           aadhaar_front_url?: string | null
           aadhaar_number?: string | null
+          certifications?: Json | null
           created_at?: string
+          education?: Json | null
+          experience_years?: number | null
           github_analysis?: Json | null
           github_score?: number | null
           github_url?: string | null
@@ -223,6 +330,7 @@ export type Database = {
           phone_number: string
           profile_analyzed_at?: string | null
           profile_score?: number | null
+          projects?: Json | null
           resume_url?: string | null
           skills?: string[] | null
           updated_at?: string
@@ -236,7 +344,10 @@ export type Database = {
           aadhaar_back_url?: string | null
           aadhaar_front_url?: string | null
           aadhaar_number?: string | null
+          certifications?: Json | null
           created_at?: string
+          education?: Json | null
+          experience_years?: number | null
           github_analysis?: Json | null
           github_score?: number | null
           github_url?: string | null
@@ -248,6 +359,7 @@ export type Database = {
           phone_number?: string
           profile_analyzed_at?: string | null
           profile_score?: number | null
+          projects?: Json | null
           resume_url?: string | null
           skills?: string[] | null
           updated_at?: string
@@ -258,6 +370,63 @@ export type Database = {
             | null
         }
         Relationships: []
+      }
+      candidate_rankings: {
+        Row: {
+          ai_recommendation: string | null
+          application_id: string
+          created_at: string
+          final_score: number
+          hire_status: string | null
+          id: string
+          job_id: string
+          rank: number | null
+          strengths: Json | null
+          updated_at: string
+          weaknesses: Json | null
+        }
+        Insert: {
+          ai_recommendation?: string | null
+          application_id: string
+          created_at?: string
+          final_score: number
+          hire_status?: string | null
+          id?: string
+          job_id: string
+          rank?: number | null
+          strengths?: Json | null
+          updated_at?: string
+          weaknesses?: Json | null
+        }
+        Update: {
+          ai_recommendation?: string | null
+          application_id?: string
+          created_at?: string
+          final_score?: number
+          hire_status?: string | null
+          id?: string
+          job_id?: string
+          rank?: number | null
+          strengths?: Json | null
+          updated_at?: string
+          weaknesses?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "candidate_rankings_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "applications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "candidate_rankings_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       candidate_scores: {
         Row: {
@@ -348,6 +517,136 @@ export type Database = {
           },
           {
             foreignKeyName: "candidate_scores_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      code_submissions: {
+        Row: {
+          ai_review: Json | null
+          application_id: string
+          code: string
+          code_quality_score: number | null
+          execution_time_ms: number | null
+          id: string
+          keystroke_data: Json | null
+          language: string
+          memory_used_kb: number | null
+          paste_events: number | null
+          problem_id: string
+          space_complexity: string | null
+          submitted_at: string
+          tests_passed: number | null
+          tests_total: number | null
+          time_complexity: string | null
+        }
+        Insert: {
+          ai_review?: Json | null
+          application_id: string
+          code: string
+          code_quality_score?: number | null
+          execution_time_ms?: number | null
+          id?: string
+          keystroke_data?: Json | null
+          language: string
+          memory_used_kb?: number | null
+          paste_events?: number | null
+          problem_id: string
+          space_complexity?: string | null
+          submitted_at?: string
+          tests_passed?: number | null
+          tests_total?: number | null
+          time_complexity?: string | null
+        }
+        Update: {
+          ai_review?: Json | null
+          application_id?: string
+          code?: string
+          code_quality_score?: number | null
+          execution_time_ms?: number | null
+          id?: string
+          keystroke_data?: Json | null
+          language?: string
+          memory_used_kb?: number | null
+          paste_events?: number | null
+          problem_id?: string
+          space_complexity?: string | null
+          submitted_at?: string
+          tests_passed?: number | null
+          tests_total?: number | null
+          time_complexity?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "code_submissions_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "applications"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      coding_problems: {
+        Row: {
+          constraints: string | null
+          created_at: string
+          description: string
+          difficulty: string
+          examples: Json | null
+          expected_space_complexity: string | null
+          expected_time_complexity: string | null
+          hidden_test_cases: Json
+          hints: Json | null
+          id: string
+          input_format: string | null
+          job_id: string | null
+          output_format: string | null
+          test_cases: Json
+          time_limit_minutes: number | null
+          title: string
+        }
+        Insert: {
+          constraints?: string | null
+          created_at?: string
+          description: string
+          difficulty: string
+          examples?: Json | null
+          expected_space_complexity?: string | null
+          expected_time_complexity?: string | null
+          hidden_test_cases?: Json
+          hints?: Json | null
+          id?: string
+          input_format?: string | null
+          job_id?: string | null
+          output_format?: string | null
+          test_cases?: Json
+          time_limit_minutes?: number | null
+          title: string
+        }
+        Update: {
+          constraints?: string | null
+          created_at?: string
+          description?: string
+          difficulty?: string
+          examples?: Json | null
+          expected_space_complexity?: string | null
+          expected_time_complexity?: string | null
+          hidden_test_cases?: Json
+          hints?: Json | null
+          id?: string
+          input_format?: string | null
+          job_id?: string | null
+          output_format?: string | null
+          test_cases?: Json
+          time_limit_minutes?: number | null
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coding_problems_job_id_fkey"
             columns: ["job_id"]
             isOneToOne: false
             referencedRelation: "jobs"
@@ -612,6 +911,161 @@ export type Database = {
         }
         Relationships: []
       }
+      final_reports: {
+        Row: {
+          generated_at: string
+          id: string
+          job_id: string
+          report_data: Json
+          report_type: string
+        }
+        Insert: {
+          generated_at?: string
+          id?: string
+          job_id: string
+          report_data?: Json
+          report_type: string
+        }
+        Update: {
+          generated_at?: string
+          id?: string
+          job_id?: string
+          report_data?: Json
+          report_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "final_reports_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fraud_logs: {
+        Row: {
+          agent_number: number | null
+          application_id: string
+          created_at: string
+          evidence: Json | null
+          flag_type: string
+          id: string
+          severity: string
+        }
+        Insert: {
+          agent_number?: number | null
+          application_id: string
+          created_at?: string
+          evidence?: Json | null
+          flag_type: string
+          id?: string
+          severity: string
+        }
+        Update: {
+          agent_number?: number | null
+          application_id?: string
+          created_at?: string
+          evidence?: Json | null
+          flag_type?: string
+          id?: string
+          severity?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fraud_logs_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "applications"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      interview_recordings: {
+        Row: {
+          application_id: string
+          audio_url: string | null
+          code_submissions: Json | null
+          created_at: string
+          duration_minutes: number | null
+          fraud_flags: Json | null
+          id: string
+          transcript: Json | null
+          video_url: string | null
+        }
+        Insert: {
+          application_id: string
+          audio_url?: string | null
+          code_submissions?: Json | null
+          created_at?: string
+          duration_minutes?: number | null
+          fraud_flags?: Json | null
+          id?: string
+          transcript?: Json | null
+          video_url?: string | null
+        }
+        Update: {
+          application_id?: string
+          audio_url?: string | null
+          code_submissions?: Json | null
+          created_at?: string
+          duration_minutes?: number | null
+          fraud_flags?: Json | null
+          id?: string
+          transcript?: Json | null
+          video_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "interview_recordings_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "applications"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      interview_transcripts: {
+        Row: {
+          application_id: string
+          audio_url: string | null
+          content: string
+          created_at: string
+          id: string
+          phase: string | null
+          role: string
+          timestamp_ms: number | null
+        }
+        Insert: {
+          application_id: string
+          audio_url?: string | null
+          content: string
+          created_at?: string
+          id?: string
+          phase?: string | null
+          role: string
+          timestamp_ms?: number | null
+        }
+        Update: {
+          application_id?: string
+          audio_url?: string | null
+          content?: string
+          created_at?: string
+          id?: string
+          phase?: string | null
+          role?: string
+          timestamp_ms?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "interview_transcripts_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "applications"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       interviewer_profiles: {
         Row: {
           budget_currency: string | null
@@ -760,6 +1214,7 @@ export type Database = {
           auto_shortlist_count: number | null
           auto_shortlist_enabled: boolean | null
           created_at: string
+          custom_questions: Json | null
           description: string | null
           experience_level: Database["public"]["Enums"]["experience_level"]
           field: string
@@ -769,9 +1224,11 @@ export type Database = {
           location_type: Database["public"]["Enums"]["location_type"] | null
           num_rounds: number | null
           required_skills: string[] | null
+          round_config: Json | null
           salary_currency: string | null
           salary_max: number | null
           salary_min: number | null
+          score_weights: Json | null
           status: Database["public"]["Enums"]["job_status"] | null
           title: string
           toughness_level: Database["public"]["Enums"]["toughness_level"] | null
@@ -782,6 +1239,7 @@ export type Database = {
           auto_shortlist_count?: number | null
           auto_shortlist_enabled?: boolean | null
           created_at?: string
+          custom_questions?: Json | null
           description?: string | null
           experience_level: Database["public"]["Enums"]["experience_level"]
           field: string
@@ -791,9 +1249,11 @@ export type Database = {
           location_type?: Database["public"]["Enums"]["location_type"] | null
           num_rounds?: number | null
           required_skills?: string[] | null
+          round_config?: Json | null
           salary_currency?: string | null
           salary_max?: number | null
           salary_min?: number | null
+          score_weights?: Json | null
           status?: Database["public"]["Enums"]["job_status"] | null
           title: string
           toughness_level?:
@@ -806,6 +1266,7 @@ export type Database = {
           auto_shortlist_count?: number | null
           auto_shortlist_enabled?: boolean | null
           created_at?: string
+          custom_questions?: Json | null
           description?: string | null
           experience_level?: Database["public"]["Enums"]["experience_level"]
           field?: string
@@ -815,9 +1276,11 @@ export type Database = {
           location_type?: Database["public"]["Enums"]["location_type"] | null
           num_rounds?: number | null
           required_skills?: string[] | null
+          round_config?: Json | null
           salary_currency?: string | null
           salary_max?: number | null
           salary_min?: number | null
+          score_weights?: Json | null
           status?: Database["public"]["Enums"]["job_status"] | null
           title?: string
           toughness_level?:
@@ -880,6 +1343,97 @@ export type Database = {
           toughness_level?: string
         }
         Relationships: []
+      }
+      mcq_questions: {
+        Row: {
+          correct_answers: Json
+          created_at: string
+          difficulty: string
+          explanation: string | null
+          id: string
+          job_id: string | null
+          options: Json
+          points: number | null
+          question_text: string
+          question_type: string
+          time_limit_seconds: number | null
+          topic: string | null
+        }
+        Insert: {
+          correct_answers?: Json
+          created_at?: string
+          difficulty: string
+          explanation?: string | null
+          id?: string
+          job_id?: string | null
+          options?: Json
+          points?: number | null
+          question_text: string
+          question_type: string
+          time_limit_seconds?: number | null
+          topic?: string | null
+        }
+        Update: {
+          correct_answers?: Json
+          created_at?: string
+          difficulty?: string
+          explanation?: string | null
+          id?: string
+          job_id?: string | null
+          options?: Json
+          points?: number | null
+          question_text?: string
+          question_type?: string
+          time_limit_seconds?: number | null
+          topic?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcq_questions_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mcq_responses: {
+        Row: {
+          answered_at: string
+          application_id: string
+          id: string
+          is_correct: boolean | null
+          question_id: string
+          selected_answers: Json
+          time_taken_seconds: number | null
+        }
+        Insert: {
+          answered_at?: string
+          application_id: string
+          id?: string
+          is_correct?: boolean | null
+          question_id: string
+          selected_answers?: Json
+          time_taken_seconds?: number | null
+        }
+        Update: {
+          answered_at?: string
+          application_id?: string
+          id?: string
+          is_correct?: boolean | null
+          question_id?: string
+          selected_answers?: Json
+          time_taken_seconds?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcq_responses_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "applications"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profiles: {
         Row: {
