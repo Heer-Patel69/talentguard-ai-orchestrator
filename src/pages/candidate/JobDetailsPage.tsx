@@ -141,11 +141,12 @@ export default function JobDetailsPage() {
   const handleApply = async () => {
     if (!user || !job) return;
 
-    // Check verification
-    if (profile?.verification_status !== "verified") {
+    // Check verification - allow pending for testing
+    const allowedStatuses = ["verified", "pending"];
+    if (profile?.verification_status && !allowedStatuses.includes(profile.verification_status)) {
       toast({
-        title: "Verification Required",
-        description: "Please complete your identity verification before applying.",
+        title: "Verification Issue",
+        description: "Your verification was rejected. Please retry verification.",
         variant: "destructive",
       });
       navigate("/verify-face");
@@ -386,14 +387,14 @@ export default function JobDetailsPage() {
               <div className="space-y-4">
                 <h3 className="font-semibold">Confirm Application</h3>
                 
-                {profile?.verification_status !== "verified" && (
-                  <div className="rounded-lg bg-warning/10 border border-warning/30 p-3">
+                {profile?.verification_status === "pending" && (
+                  <div className="rounded-lg bg-info/10 border border-info/30 p-3">
                     <div className="flex items-start gap-2">
-                      <AlertCircle className="h-5 w-5 text-warning shrink-0" />
+                      <AlertCircle className="h-5 w-5 text-info shrink-0" />
                       <div>
-                        <p className="text-sm font-medium text-warning">Verification Required</p>
+                        <p className="text-sm font-medium text-info">Verification Pending</p>
                         <p className="text-xs text-muted-foreground">
-                          Complete identity verification before applying.
+                          You can apply now. Complete verification later for full access.
                         </p>
                       </div>
                     </div>
@@ -484,9 +485,9 @@ export default function JobDetailsPage() {
                   </p>
                 </div>
               </div>
-              {profile.verification_status !== "verified" && (
+              {profile.verification_status === "pending" && (
                 <Button variant="outline" size="sm" className="mt-3 w-full" asChild>
-                  <Link to="/verify-face">Complete Verification</Link>
+                  <Link to="/verify-face">Complete Verification (Optional)</Link>
                 </Button>
               )}
             </GlassCard>
