@@ -7,6 +7,7 @@ import { ThemeProvider } from "@/hooks/use-theme";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { DashboardLayout } from "@/components/dashboard/DashboardLayout";
+import { CandidateDashboardLayout } from "@/components/candidate/CandidateDashboardLayout";
 
 // Pages
 import LandingPage from "./pages/LandingPage";
@@ -20,13 +21,21 @@ import InterviewPage from "./pages/InterviewPage";
 import CandidateReportPage from "./pages/CandidateReportPage";
 import NotFound from "./pages/NotFound";
 
-// Dashboard Pages
+// Dashboard Pages (Interviewer)
 import DashboardOverview from "./pages/dashboard/DashboardOverview";
 import PostJobPage from "./pages/dashboard/PostJobPage";
 import ManageJobsPage from "./pages/dashboard/ManageJobsPage";
 import CandidatesPage from "./pages/dashboard/CandidatesPage";
 import AnalyticsPage from "./pages/dashboard/AnalyticsPage";
 import SettingsPage from "./pages/dashboard/SettingsPage";
+
+// Candidate Dashboard Pages
+import CandidateOverviewPage from "./pages/candidate/CandidateOverviewPage";
+import BrowseJobsPage from "./pages/candidate/BrowseJobsPage";
+import JobDetailsPage from "./pages/candidate/JobDetailsPage";
+import MyApplicationsPage from "./pages/candidate/MyApplicationsPage";
+import CandidateProfilePage from "./pages/candidate/CandidateProfilePage";
+import InterviewRoomPage from "./pages/candidate/InterviewRoomPage";
 
 const queryClient = new QueryClient();
 
@@ -60,6 +69,68 @@ const App = () => (
                 element={
                   <ProtectedRoute allowedRoles={["candidate"]}>
                     <CandidateDashboardPage />
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* Candidate Dashboard Routes */}
+              <Route
+                path="/candidate"
+                element={
+                  <ProtectedRoute allowedRoles={["candidate"]}>
+                    <CandidateDashboardLayout>
+                      <CandidateOverviewPage />
+                    </CandidateDashboardLayout>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/candidate/jobs"
+                element={
+                  <ProtectedRoute allowedRoles={["candidate"]}>
+                    <CandidateDashboardLayout>
+                      <BrowseJobsPage />
+                    </CandidateDashboardLayout>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/candidate/jobs/:id"
+                element={
+                  <ProtectedRoute allowedRoles={["candidate"]}>
+                    <CandidateDashboardLayout>
+                      <JobDetailsPage />
+                    </CandidateDashboardLayout>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/candidate/applications"
+                element={
+                  <ProtectedRoute allowedRoles={["candidate"]}>
+                    <CandidateDashboardLayout>
+                      <MyApplicationsPage />
+                    </CandidateDashboardLayout>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/candidate/profile"
+                element={
+                  <ProtectedRoute allowedRoles={["candidate"]}>
+                    <CandidateDashboardLayout>
+                      <CandidateProfilePage />
+                    </CandidateDashboardLayout>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/candidate/interview"
+                element={
+                  <ProtectedRoute allowedRoles={["candidate"]}>
+                    <CandidateDashboardLayout>
+                      <InterviewRoomPage />
+                    </CandidateDashboardLayout>
                   </ProtectedRoute>
                 }
               />
