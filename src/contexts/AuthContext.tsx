@@ -51,19 +51,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
+    let mounted = true;
+
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, currentSession) => {
+        if (!mounted) return;
+        
         setSession(currentSession);
         setUser(currentSession?.user ?? null);
 
         if (currentSession?.user) {
-          // Defer role fetch to avoid blocking
-          setTimeout(async () => {
-            const userRole = await fetchUserRole(currentSession.user.id);
+          // Fetch role immediately without setTimeout for faster response
+          const userRole = await fetchUserRole(currentSession.user.id);
+          if (mounted) {
             setRole(userRole);
             setIsLoading(false);
-          }, 0);
+          }
         } else {
           setRole(null);
           setIsLoading(false);
@@ -73,17 +77,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // THEN check for existing session
     supabase.auth.getSession().then(async ({ data: { session: existingSession } }) => {
+      if (!mounted) return;
+      
       setSession(existingSession);
       setUser(existingSession?.user ?? null);
 
       if (existingSession?.user) {
         const userRole = await fetchUserRole(existingSession.user.id);
-        setRole(userRole);
+        if (mounted) setRole(userRole);
       }
-      setIsLoading(false);
+      if (mounted) setIsLoading(false);
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const signUp = async (email: string, password: string) => {

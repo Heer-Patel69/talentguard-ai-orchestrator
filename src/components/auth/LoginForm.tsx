@@ -55,17 +55,17 @@ export function LoginForm() {
         } else {
           throw error;
         }
+        setIsLoading(false);
         return;
       }
 
-      await refreshRole();
-
+      // Don't call refreshRole() - onAuthStateChange already handles it
+      // Navigate immediately, ProtectedRoute will handle role-based redirection
       toast({
         title: "Welcome back!",
         description: "You have been signed in successfully.",
       });
 
-      // The navigation will be handled by the auth context after role is fetched
       navigate("/dashboard");
     } catch (error: any) {
       console.error("Login error:", error);
@@ -74,7 +74,6 @@ export function LoginForm() {
         description: error.message || "Invalid email or password",
         variant: "destructive",
       });
-    } finally {
       setIsLoading(false);
     }
   };
