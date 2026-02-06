@@ -28,6 +28,7 @@ import ManageJobsPage from "./pages/dashboard/ManageJobsPage";
 import CandidatesPage from "./pages/dashboard/CandidatesPage";
 import AnalyticsPage from "./pages/dashboard/AnalyticsPage";
 import SettingsPage from "./pages/dashboard/SettingsPage";
+import InterviewerCandidateReportPage from "./pages/dashboard/CandidateReportPage";
 
 // Candidate Dashboard Pages
 import CandidateOverviewPage from "./pages/candidate/CandidateOverviewPage";
@@ -192,6 +193,16 @@ const App = () => (
                   <ProtectedRoute allowedRoles={["interviewer"]}>
                     <DashboardLayout>
                       <SettingsPage />
+                    </DashboardLayout>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/dashboard/candidates/:id"
+                element={
+                  <ProtectedRoute allowedRoles={["interviewer"]}>
+                    <DashboardLayout>
+                      <InterviewerCandidateReportPage />
                     </DashboardLayout>
                   </ProtectedRoute>
                 }

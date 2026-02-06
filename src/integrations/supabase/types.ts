@@ -121,6 +121,102 @@ export type Database = {
         }
         Relationships: []
       }
+      candidate_scores: {
+        Row: {
+          application_id: string
+          candidate_id: string
+          communication_score: number | null
+          created_at: string
+          final_score: number | null
+          id: string
+          improvement_suggestions: string[] | null
+          job_id: string
+          overall_summary: string | null
+          percentile_rank: number | null
+          problem_solving_score: number | null
+          rank_among_applicants: number | null
+          recommendation:
+            | Database["public"]["Enums"]["decision_recommendation"]
+            | null
+          recommendation_confidence: number | null
+          recommendation_reason: string | null
+          risk_explanations: string[] | null
+          risk_flags: string[] | null
+          strengths: string[] | null
+          technical_score: number | null
+          total_applicants: number | null
+          updated_at: string
+          weaknesses: string[] | null
+        }
+        Insert: {
+          application_id: string
+          candidate_id: string
+          communication_score?: number | null
+          created_at?: string
+          final_score?: number | null
+          id?: string
+          improvement_suggestions?: string[] | null
+          job_id: string
+          overall_summary?: string | null
+          percentile_rank?: number | null
+          problem_solving_score?: number | null
+          rank_among_applicants?: number | null
+          recommendation?:
+            | Database["public"]["Enums"]["decision_recommendation"]
+            | null
+          recommendation_confidence?: number | null
+          recommendation_reason?: string | null
+          risk_explanations?: string[] | null
+          risk_flags?: string[] | null
+          strengths?: string[] | null
+          technical_score?: number | null
+          total_applicants?: number | null
+          updated_at?: string
+          weaknesses?: string[] | null
+        }
+        Update: {
+          application_id?: string
+          candidate_id?: string
+          communication_score?: number | null
+          created_at?: string
+          final_score?: number | null
+          id?: string
+          improvement_suggestions?: string[] | null
+          job_id?: string
+          overall_summary?: string | null
+          percentile_rank?: number | null
+          problem_solving_score?: number | null
+          rank_among_applicants?: number | null
+          recommendation?:
+            | Database["public"]["Enums"]["decision_recommendation"]
+            | null
+          recommendation_confidence?: number | null
+          recommendation_reason?: string | null
+          risk_explanations?: string[] | null
+          risk_flags?: string[] | null
+          strengths?: string[] | null
+          technical_score?: number | null
+          total_applicants?: number | null
+          updated_at?: string
+          weaknesses?: string[] | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "candidate_scores_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: true
+            referencedRelation: "applications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "candidate_scores_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       decision_overrides: {
         Row: {
           application_id: string
@@ -354,6 +450,74 @@ export type Database = {
         }
         Relationships: []
       }
+      question_scores: {
+        Row: {
+          ai_evaluation: string | null
+          ai_reasoning: string | null
+          candidate_answer: string | null
+          code_quality: number | null
+          communication_clarity: number | null
+          created_at: string
+          hints_used: number | null
+          id: string
+          problem_solving: number | null
+          question_number: number
+          question_text: string
+          round_result_id: string
+          score_justification: string | null
+          technical_accuracy: number | null
+          time_efficiency: number | null
+          time_taken_seconds: number | null
+          weighted_score: number | null
+        }
+        Insert: {
+          ai_evaluation?: string | null
+          ai_reasoning?: string | null
+          candidate_answer?: string | null
+          code_quality?: number | null
+          communication_clarity?: number | null
+          created_at?: string
+          hints_used?: number | null
+          id?: string
+          problem_solving?: number | null
+          question_number: number
+          question_text: string
+          round_result_id: string
+          score_justification?: string | null
+          technical_accuracy?: number | null
+          time_efficiency?: number | null
+          time_taken_seconds?: number | null
+          weighted_score?: number | null
+        }
+        Update: {
+          ai_evaluation?: string | null
+          ai_reasoning?: string | null
+          candidate_answer?: string | null
+          code_quality?: number | null
+          communication_clarity?: number | null
+          created_at?: string
+          hints_used?: number | null
+          id?: string
+          problem_solving?: number | null
+          question_number?: number
+          question_text?: string
+          round_result_id?: string
+          score_justification?: string | null
+          technical_accuracy?: number | null
+          time_efficiency?: number | null
+          time_taken_seconds?: number | null
+          weighted_score?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "question_scores_round_result_id_fkey"
+            columns: ["round_result_id"]
+            isOneToOne: false
+            referencedRelation: "round_results"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       round_results: {
         Row: {
           ai_explanation: string | null
@@ -414,6 +578,141 @@ export type Database = {
           },
         ]
       }
+      round_scores: {
+        Row: {
+          application_id: string
+          base_score: number | null
+          clarifying_questions_bonus: number | null
+          created_at: string
+          edge_cases_bonus: number | null
+          final_score: number | null
+          fraud_penalty: number | null
+          hints_penalty: number | null
+          id: string
+          improvement_suggestions: string[] | null
+          optimization_bonus: number | null
+          round_number: number
+          round_result_id: string
+          strengths: string[] | null
+          updated_at: string
+          weaknesses: string[] | null
+          weight: number | null
+        }
+        Insert: {
+          application_id: string
+          base_score?: number | null
+          clarifying_questions_bonus?: number | null
+          created_at?: string
+          edge_cases_bonus?: number | null
+          final_score?: number | null
+          fraud_penalty?: number | null
+          hints_penalty?: number | null
+          id?: string
+          improvement_suggestions?: string[] | null
+          optimization_bonus?: number | null
+          round_number: number
+          round_result_id: string
+          strengths?: string[] | null
+          updated_at?: string
+          weaknesses?: string[] | null
+          weight?: number | null
+        }
+        Update: {
+          application_id?: string
+          base_score?: number | null
+          clarifying_questions_bonus?: number | null
+          created_at?: string
+          edge_cases_bonus?: number | null
+          final_score?: number | null
+          fraud_penalty?: number | null
+          hints_penalty?: number | null
+          id?: string
+          improvement_suggestions?: string[] | null
+          optimization_bonus?: number | null
+          round_number?: number
+          round_result_id?: string
+          strengths?: string[] | null
+          updated_at?: string
+          weaknesses?: string[] | null
+          weight?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "round_scores_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "applications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "round_scores_round_result_id_fkey"
+            columns: ["round_result_id"]
+            isOneToOne: true
+            referencedRelation: "round_results"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      scoring_audit_logs: {
+        Row: {
+          action_description: string
+          action_type: string
+          application_id: string | null
+          candidate_id: string | null
+          confidence_score: number | null
+          created_at: string
+          decision_made: string | null
+          factors_considered: Json | null
+          id: string
+          job_id: string | null
+          model_version: string | null
+          triggered_by: string | null
+        }
+        Insert: {
+          action_description: string
+          action_type: string
+          application_id?: string | null
+          candidate_id?: string | null
+          confidence_score?: number | null
+          created_at?: string
+          decision_made?: string | null
+          factors_considered?: Json | null
+          id?: string
+          job_id?: string | null
+          model_version?: string | null
+          triggered_by?: string | null
+        }
+        Update: {
+          action_description?: string
+          action_type?: string
+          application_id?: string | null
+          candidate_id?: string | null
+          confidence_score?: number | null
+          created_at?: string
+          decision_made?: string | null
+          factors_considered?: Json | null
+          id?: string
+          job_id?: string | null
+          model_version?: string | null
+          triggered_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scoring_audit_logs_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "applications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "scoring_audit_logs_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           created_at: string
@@ -463,6 +762,7 @@ export type Database = {
         | "hired"
         | "withdrawn"
       company_age: "less_than_1" | "1_to_5" | "5_to_10" | "more_than_10"
+      decision_recommendation: "shortlist" | "maybe" | "reject"
       experience_level: "fresher" | "junior" | "mid" | "senior" | "architect"
       industry:
         | "it"
@@ -623,6 +923,7 @@ export const Constants = {
         "withdrawn",
       ],
       company_age: ["less_than_1", "1_to_5", "5_to_10", "more_than_10"],
+      decision_recommendation: ["shortlist", "maybe", "reject"],
       experience_level: ["fresher", "junior", "mid", "senior", "architect"],
       industry: [
         "it",
