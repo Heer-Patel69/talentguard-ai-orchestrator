@@ -18,16 +18,28 @@ import {
   ArrowRight,
   Calendar,
   Code,
-  Brain,
   TrendingUp,
   Zap,
+  Loader2,
+  RefreshCw,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useToast } from "@/hooks/use-toast";
 
 interface CandidateProfile {
   verification_status: string;
   github_url: string | null;
   linkedin_url: string | null;
+  skills: string[] | null;
+  profile_score: number | null;
+  github_score: number | null;
+  linkedin_score: number | null;
+  github_analysis: {
+    repos_count: number;
+    total_stars: number;
+    top_languages: string[];
+    activity_level: string;
+  } | null;
 }
 
 interface Application {
@@ -40,23 +52,31 @@ interface Application {
   } | null;
 }
 
-interface Job {
-  id: string;
-  title: string;
-  field: string;
-  experience_level: string;
-  salary_min: number | null;
-  salary_max: number | null;
-  salary_currency: string;
-  toughness_level: string;
+interface JobPriority {
+  job_id: string;
+  match_score: number;
+  matching_skills: string[];
+  is_favorited: boolean;
+  job: {
+    id: string;
+    title: string;
+    field: string;
+    experience_level: string;
+    salary_min: number | null;
+    salary_max: number | null;
+    salary_currency: string;
+    toughness_level: string;
+  };
 }
 
 export default function CandidateOverviewPage() {
   const { user } = useAuth();
+  const { toast } = useToast();
   const [profile, setProfile] = useState<CandidateProfile | null>(null);
   const [applications, setApplications] = useState<Application[]>([]);
-  const [recommendedJobs, setRecommendedJobs] = useState<Job[]>([]);
+  const [recommendedJobs, setRecommendedJobs] = useState<JobPriority[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -73,7 +93,12 @@ export default function CandidateOverviewPage() {
         .eq("user_id", user!.id)
         .maybeSingle();
 
-      setProfile(profileData);
+      if (profileData) {
+        setProfile({
+          ...profileData,
+          github_analysis: profileData.github_analysis as CandidateProfile['github_analysis'],
+        });
+      }
 
       // Fetch applications
       const { data: applicationsData } = await supabase
@@ -93,18 +118,74 @@ export default function CandidateOverviewPage() {
 
       setApplications(applicationsData || []);
 
-      // Fetch recommended jobs (active jobs)
-      const { data: jobsData } = await supabase
-        .from("jobs")
-        .select("*")
-        .eq("status", "active")
+      // Fetch job priorities (matched jobs)
+      const { data: prioritiesData } = await supabase
+        .from("job_priorities")
+        .select(`
+          job_id,
+          match_score,
+          matching_skills,
+          is_favorited,
+          job:jobs(
+            id,
+            title,
+            field,
+            experience_level,
+            salary_min,
+            salary_max,
+            salary_currency,
+            toughness_level
+          )
+        `)
+        .eq("candidate_id", user!.id)
+        .order("match_score", { ascending: false })
         .limit(4);
 
-      setRecommendedJobs(jobsData || []);
+      // If no priorities yet, fetch random active jobs
+      if (!prioritiesData || prioritiesData.length === 0) {
+        const { data: jobsData } = await supabase
+          .from("jobs")
+          .select("*")
+          .eq("status", "active")
+          .limit(4);
+
+        setRecommendedJobs((jobsData || []).map(job => ({
+          job_id: job.id,
+          match_score: 50,
+          matching_skills: [],
+          is_favorited: false,
+          job: job,
+        })));
+      } else {
+        setRecommendedJobs(prioritiesData.filter(p => p.job) as JobPriority[]);
+      }
     } catch (error) {
       console.error("Error fetching data:", error);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const refreshJobMatching = async () => {
+    setIsRefreshing(true);
+    try {
+      const { error } = await supabase.functions.invoke("match-jobs");
+      if (error) throw error;
+
+      await fetchData();
+      toast({
+        title: "Jobs refreshed!",
+        description: "Job matches have been updated based on your skills.",
+      });
+    } catch (error) {
+      console.error("Error refreshing matches:", error);
+      toast({
+        title: "Error",
+        description: "Failed to refresh job matches",
+        variant: "destructive",
+      });
+    } finally {
+      setIsRefreshing(false);
     }
   };
 
@@ -168,7 +249,7 @@ export default function CandidateOverviewPage() {
   if (isLoading) {
     return (
       <div className="flex h-64 items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-success border-t-transparent" />
+        <Loader2 className="h-8 w-8 animate-spin text-success" />
       </div>
     );
   }
@@ -183,32 +264,39 @@ export default function CandidateOverviewPage() {
             Here's your job search overview
           </p>
         </div>
-        {getVerificationBadge()}
+        <div className="flex items-center gap-3">
+          {getVerificationBadge()}
+          {profile?.profile_score && profile.profile_score > 0 && (
+            <div className="flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-3 py-1">
+              <Zap className="h-4 w-4 text-primary" />
+              <span className="text-sm font-medium text-primary">{profile.profile_score} Profile Score</span>
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* Verification Alert */}
-      {profile?.verification_status === "pending" && (
+      {/* Profile Analysis Summary */}
+      {profile?.github_analysis && (
         <motion.div
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
         >
-          <GlassCard className="border-warning/30 bg-warning/5">
+          <GlassCard className="border-primary/30 bg-primary/5">
             <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
               <div className="flex items-start gap-3">
-                <Shield className="h-5 w-5 text-warning mt-0.5" />
+                <Code className="h-5 w-5 text-primary mt-0.5" />
                 <div>
-                  <h3 className="font-semibold text-warning">Complete Your Verification</h3>
+                  <h3 className="font-semibold text-primary">GitHub Profile Analyzed</h3>
                   <p className="text-sm text-muted-foreground">
-                    Verify your identity to apply for jobs and access all features.
+                    {profile.github_analysis.repos_count} repos • {profile.github_analysis.total_stars} stars • 
+                    {profile.github_analysis.activity_level} activity
                   </p>
                 </div>
               </div>
-              <Button variant="outline" className="border-warning text-warning hover:bg-warning/10" asChild>
-                <Link to="/verify-face">
-                  Complete Verification
-                  <ArrowRight className="ml-2 h-4 w-4" />
-                </Link>
-              </Button>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">GitHub Score:</span>
+                <span className="font-bold text-primary">{profile.github_score}/100</span>
+              </div>
             </div>
           </GlassCard>
         </motion.div>
@@ -298,14 +386,29 @@ export default function CandidateOverviewPage() {
           </div>
 
           <div className="flex flex-wrap gap-2">
-            {["JavaScript", "React", "TypeScript", "Node.js", "Python", "SQL", "Git"].map((skill) => (
-              <span
-                key={skill}
-                className="rounded-full bg-success/10 px-3 py-1 text-sm font-medium text-success"
-              >
-                {skill}
-              </span>
-            ))}
+            {(profile?.skills || []).length > 0 ? (
+              profile!.skills.map((skill) => (
+                <span
+                  key={skill}
+                  className="rounded-full bg-success/10 px-3 py-1 text-sm font-medium text-success"
+                >
+                  {skill}
+                </span>
+              ))
+            ) : profile?.github_analysis?.top_languages ? (
+              profile.github_analysis.top_languages.map((lang) => (
+                <span
+                  key={lang}
+                  className="rounded-full bg-success/10 px-3 py-1 text-sm font-medium text-success"
+                >
+                  {lang}
+                </span>
+              ))
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                Skills will be extracted from your GitHub and LinkedIn profiles
+              </p>
+            )}
           </div>
 
           <div className="mt-4 flex items-center gap-4 text-sm text-muted-foreground">
@@ -332,18 +435,24 @@ export default function CandidateOverviewPage() {
             <Briefcase className="h-5 w-5 text-success" />
             Recommended for You
           </h2>
-          <Button variant="ghost" size="sm" asChild>
-            <Link to="/candidate/jobs">
-              View All Jobs
-              <ArrowRight className="ml-1 h-4 w-4" />
-            </Link>
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={refreshJobMatching} disabled={isRefreshing}>
+              <RefreshCw className={cn("mr-2 h-4 w-4", isRefreshing && "animate-spin")} />
+              Refresh Matches
+            </Button>
+            <Button variant="ghost" size="sm" asChild>
+              <Link to="/candidate/jobs">
+                View All Jobs
+                <ArrowRight className="ml-1 h-4 w-4" />
+              </Link>
+            </Button>
+          </div>
         </div>
 
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          {recommendedJobs.map((job, index) => (
+          {recommendedJobs.map((priority, index) => (
             <motion.div
-              key={job.id}
+              key={priority.job_id}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.05 }}
@@ -353,24 +462,40 @@ export default function CandidateOverviewPage() {
                   <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
                     <Briefcase className="h-5 w-5 text-primary" />
                   </div>
-                  <span className={cn(
-                    "rounded-full px-2 py-0.5 text-xs font-medium capitalize",
-                    job.toughness_level === "easy" && "bg-success/10 text-success",
-                    job.toughness_level === "medium" && "bg-warning/10 text-warning",
-                    job.toughness_level === "hard" && "bg-danger/10 text-danger",
-                    job.toughness_level === "expert" && "bg-purple-500/10 text-purple-500"
-                  )}>
-                    {job.toughness_level}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    {priority.match_score > 0 && (
+                      <span className="text-xs font-medium bg-success/10 text-success px-2 py-0.5 rounded-full">
+                        {priority.match_score}% match
+                      </span>
+                    )}
+                    <span className={cn(
+                      "rounded-full px-2 py-0.5 text-xs font-medium capitalize",
+                      priority.job.toughness_level === "easy" && "bg-success/10 text-success",
+                      priority.job.toughness_level === "medium" && "bg-warning/10 text-warning",
+                      priority.job.toughness_level === "hard" && "bg-danger/10 text-danger",
+                      priority.job.toughness_level === "expert" && "bg-purple-500/10 text-purple-500"
+                    )}>
+                      {priority.job.toughness_level}
+                    </span>
+                  </div>
                 </div>
-                <h3 className="font-semibold line-clamp-1">{job.title}</h3>
-                <p className="text-sm text-muted-foreground mt-1">{job.field}</p>
-                <p className="text-sm text-muted-foreground capitalize">{job.experience_level}</p>
+                <h3 className="font-semibold line-clamp-1">{priority.job.title}</h3>
+                <p className="text-sm text-muted-foreground mt-1">{priority.job.field}</p>
+                <p className="text-sm text-muted-foreground capitalize">{priority.job.experience_level}</p>
+                {priority.matching_skills.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-1">
+                    {priority.matching_skills.slice(0, 2).map(skill => (
+                      <span key={skill} className="text-xs bg-primary/10 text-primary px-1.5 py-0.5 rounded">
+                        {skill}
+                      </span>
+                    ))}
+                  </div>
+                )}
                 <p className="text-sm font-medium text-success mt-2">
-                  {formatSalary(job.salary_min, job.salary_max, job.salary_currency)}
+                  {formatSalary(priority.job.salary_min, priority.job.salary_max, priority.job.salary_currency)}
                 </p>
                 <Button variant="outline" size="sm" className="w-full mt-3" asChild>
-                  <Link to={`/candidate/jobs/${job.id}`}>View Details</Link>
+                  <Link to={`/candidate/jobs/${priority.job.id}`}>View Details</Link>
                 </Button>
               </GlassCard>
             </motion.div>

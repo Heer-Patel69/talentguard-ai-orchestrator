@@ -18,25 +18,22 @@ import { Checkbox } from "@/components/ui/checkbox";
 import {
   Users,
   Search,
-  Filter,
   MoreVertical,
   Eye,
   FileText,
   Github,
   Linkedin,
-  Mail,
-  Phone,
   CheckCircle2,
   XCircle,
   Clock,
   AlertTriangle,
-  ArrowUpRight,
   Download,
   UserCheck,
   UserX,
   ChevronRight,
   Shield,
   Video,
+  Loader2,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -48,105 +45,24 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
-// Mock data for now
-const mockCandidates = [
-  {
-    id: "1",
-    name: "Sarah Chen",
-    email: "sarah.chen@email.com",
-    phone: "+91 9876543210",
-    job: "Senior Frontend Developer",
-    stage: "Technical Round",
-    status: "interviewing",
-    score: 94,
-    aiConfidence: 92,
-    fraudFlags: 0,
-    verificationStatus: "verified",
-    appliedAt: "2024-01-15",
-    githubUrl: "https://github.com/sarahchen",
-    linkedinUrl: "https://linkedin.com/in/sarahchen",
-  },
-  {
-    id: "2",
-    name: "Michael Park",
-    email: "michael.park@email.com",
-    phone: "+91 9876543211",
-    job: "Backend Engineer",
-    stage: "System Design",
-    status: "interviewing",
-    score: 87,
-    aiConfidence: 85,
-    fraudFlags: 1,
-    verificationStatus: "verified",
-    appliedAt: "2024-01-14",
-    githubUrl: "https://github.com/michaelpark",
-    linkedinUrl: "https://linkedin.com/in/michaelpark",
-  },
-  {
-    id: "3",
-    name: "Emily Rodriguez",
-    email: "emily.r@email.com",
-    phone: "+91 9876543212",
-    job: "Full Stack Developer",
-    stage: "Behavioral",
-    status: "flagged",
-    score: 56,
-    aiConfidence: 45,
-    fraudFlags: 3,
-    verificationStatus: "manual_review",
-    appliedAt: "2024-01-13",
-    githubUrl: null,
-    linkedinUrl: "https://linkedin.com/in/emilyr",
-  },
-  {
-    id: "4",
-    name: "James Wilson",
-    email: "james.w@email.com",
-    phone: "+91 9876543213",
-    job: "DevOps Engineer",
-    stage: "Screening",
-    status: "applied",
-    score: 0,
-    aiConfidence: 0,
-    fraudFlags: 0,
-    verificationStatus: "verified",
-    appliedAt: "2024-01-16",
-    githubUrl: "https://github.com/jameswilson",
-    linkedinUrl: "https://linkedin.com/in/jameswilson",
-  },
-  {
-    id: "5",
-    name: "Priya Sharma",
-    email: "priya.s@email.com",
-    phone: "+91 9876543214",
-    job: "Data Scientist",
-    stage: "Completed",
-    status: "shortlisted",
-    score: 91,
-    aiConfidence: 94,
-    fraudFlags: 0,
-    verificationStatus: "verified",
-    appliedAt: "2024-01-12",
-    githubUrl: "https://github.com/priyasharma",
-    linkedinUrl: "https://linkedin.com/in/priyasharma",
-  },
-  {
-    id: "6",
-    name: "David Kim",
-    email: "david.k@email.com",
-    phone: "+91 9876543215",
-    job: "ML Engineer",
-    stage: "Terminated",
-    status: "rejected",
-    score: 42,
-    aiConfidence: 38,
-    fraudFlags: 5,
-    verificationStatus: "rejected",
-    appliedAt: "2024-01-11",
-    githubUrl: null,
-    linkedinUrl: null,
-  },
-];
+interface Candidate {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  job: string;
+  jobId: string;
+  stage: string;
+  status: string;
+  score: number;
+  aiConfidence: number;
+  fraudFlags: number;
+  verificationStatus: string;
+  appliedAt: string;
+  githubUrl: string | null;
+  linkedinUrl: string | null;
+  profileScore: number;
+}
 
 const statusLabels: Record<string, { label: string; color: string; icon: any }> = {
   applied: { label: "Applied", color: "bg-info/10 text-info", icon: Clock },
@@ -156,17 +72,121 @@ const statusLabels: Record<string, { label: string; color: string; icon: any }> 
   rejected: { label: "Rejected", color: "bg-danger/10 text-danger", icon: XCircle },
   flagged: { label: "Flagged", color: "bg-danger/10 text-danger", icon: AlertTriangle },
   hired: { label: "Hired", color: "bg-success/10 text-success", icon: UserCheck },
+  completed: { label: "Completed", color: "bg-primary/10 text-primary", icon: CheckCircle2 },
+};
+
+const getRoundName = (round: number) => {
+  const rounds = ["Screening", "Technical Round", "System Design", "Behavioral", "Final Round", "Completed"];
+  return rounds[Math.min(round - 1, rounds.length - 1)] || "Screening";
 };
 
 export default function CandidatesPage() {
-  const [candidates, setCandidates] = useState(mockCandidates);
+  const [candidates, setCandidates] = useState<Candidate[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [jobFilter, setJobFilter] = useState<string>("all");
   const [selectedCandidates, setSelectedCandidates] = useState<string[]>([]);
+  const [jobs, setJobs] = useState<{ id: string; title: string }[]>([]);
+  const { user } = useAuth();
   const { toast } = useToast();
 
-  const jobs = [...new Set(mockCandidates.map(c => c.job))];
+  useEffect(() => {
+    if (user) {
+      fetchCandidates();
+    }
+  }, [user]);
+
+  const fetchCandidates = async () => {
+    try {
+      // Get interviewer's jobs
+      const { data: jobsData } = await supabase
+        .from("jobs")
+        .select("id, title")
+        .eq("interviewer_id", user!.id);
+
+      setJobs(jobsData || []);
+      const jobIds = (jobsData || []).map(j => j.id);
+
+      if (jobIds.length === 0) {
+        setCandidates([]);
+        setIsLoading(false);
+        return;
+      }
+
+      // Get applications for those jobs
+      const { data: applications, error } = await supabase
+        .from("applications")
+        .select(`
+          id,
+          status,
+          current_round,
+          overall_score,
+          ai_confidence,
+          fraud_flags,
+          applied_at,
+          candidate_id,
+          job_id,
+          jobs!inner(id, title)
+        `)
+        .in("job_id", jobIds)
+        .order("applied_at", { ascending: false });
+
+      if (error) throw error;
+
+      // Get candidate profiles
+      const candidateIds = [...new Set((applications || []).map(a => a.candidate_id))];
+      
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("user_id, full_name, email")
+        .in("user_id", candidateIds);
+
+      const { data: candidateProfiles } = await supabase
+        .from("candidate_profiles")
+        .select("user_id, phone_number, github_url, linkedin_url, verification_status, profile_score")
+        .in("user_id", candidateIds);
+
+      const profileMap = new Map((profiles || []).map(p => [p.user_id, p]));
+      const candidateProfileMap = new Map((candidateProfiles || []).map(p => [p.user_id, p]));
+
+      const formattedCandidates: Candidate[] = (applications || []).map(app => {
+        const profile = profileMap.get(app.candidate_id);
+        const candProfile = candidateProfileMap.get(app.candidate_id);
+        const fraudFlagsCount = Array.isArray(app.fraud_flags) ? app.fraud_flags.length : 0;
+
+        return {
+          id: app.id,
+          name: profile?.full_name || "Unknown",
+          email: profile?.email || "",
+          phone: candProfile?.phone_number || "",
+          job: (app.jobs as any)?.title || "Unknown",
+          jobId: app.job_id,
+          stage: getRoundName(app.current_round || 1),
+          status: app.status || "applied",
+          score: app.overall_score || 0,
+          aiConfidence: app.ai_confidence || 0,
+          fraudFlags: fraudFlagsCount,
+          verificationStatus: candProfile?.verification_status || "pending",
+          appliedAt: app.applied_at,
+          githubUrl: candProfile?.github_url || null,
+          linkedinUrl: candProfile?.linkedin_url || null,
+          profileScore: candProfile?.profile_score || 0,
+        };
+      });
+
+      setCandidates(formattedCandidates);
+    } catch (error) {
+      console.error("Error fetching candidates:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load candidates",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const filteredCandidates = candidates.filter(candidate => {
     const matchesSearch = 
@@ -174,7 +194,7 @@ export default function CandidatesPage() {
       candidate.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
       candidate.job.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesStatus = statusFilter === "all" || candidate.status === statusFilter;
-    const matchesJob = jobFilter === "all" || candidate.job === jobFilter;
+    const matchesJob = jobFilter === "all" || candidate.jobId === jobFilter;
     return matchesSearch && matchesStatus && matchesJob;
   });
 
@@ -194,13 +214,67 @@ export default function CandidatesPage() {
     }
   };
 
-  const bulkAction = (action: string) => {
-    toast({
-      title: `Bulk ${action}`,
-      description: `${selectedCandidates.length} candidates ${action}`,
-    });
-    setSelectedCandidates([]);
+  const updateApplicationStatus = async (applicationId: string, newStatus: "applied" | "hired" | "interviewing" | "rejected" | "screening" | "shortlisted" | "withdrawn") => {
+    try {
+      const { error } = await supabase
+        .from("applications")
+        .update({ status: newStatus })
+        .eq("id", applicationId);
+
+      if (error) throw error;
+
+      setCandidates(prev => 
+        prev.map(c => c.id === applicationId ? { ...c, status: newStatus } : c)
+      );
+
+      toast({
+        title: "Status updated",
+        description: `Application ${newStatus}`,
+      });
+    } catch (error) {
+      console.error("Error updating status:", error);
+      toast({
+        title: "Error",
+        description: "Failed to update status",
+        variant: "destructive",
+      });
+    }
   };
+
+  const bulkAction = async (action: string) => {
+    const newStatus = action === "shortlisted" ? "shortlisted" : action === "rejected" ? "rejected" : "interviewing";
+    
+    try {
+      const { error } = await supabase
+        .from("applications")
+        .update({ status: newStatus })
+        .in("id", selectedCandidates);
+
+      if (error) throw error;
+
+      await fetchCandidates();
+      toast({
+        title: `Bulk ${action}`,
+        description: `${selectedCandidates.length} candidates ${action}`,
+      });
+      setSelectedCandidates([]);
+    } catch (error) {
+      console.error("Bulk action error:", error);
+      toast({
+        title: "Error",
+        description: "Failed to perform bulk action",
+        variant: "destructive",
+      });
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -281,7 +355,7 @@ export default function CandidatesPage() {
           <SelectContent>
             <SelectItem value="all">All Jobs</SelectItem>
             {jobs.map(job => (
-              <SelectItem key={job} value={job}>{job}</SelectItem>
+              <SelectItem key={job.id} value={job.id}>{job.title}</SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -292,154 +366,175 @@ export default function CandidatesPage() {
       </div>
 
       {/* Candidates Table */}
-      <GlassCard className="overflow-hidden p-0">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="border-b border-border bg-secondary/50">
-              <tr>
-                <th className="px-4 py-3 text-left">
-                  <Checkbox
-                    checked={selectedCandidates.length === filteredCandidates.length && filteredCandidates.length > 0}
-                    onCheckedChange={toggleSelectAll}
-                  />
-                </th>
-                <th className="px-4 py-3 text-left text-sm font-medium">Candidate</th>
-                <th className="px-4 py-3 text-left text-sm font-medium">Job</th>
-                <th className="px-4 py-3 text-left text-sm font-medium">Stage</th>
-                <th className="px-4 py-3 text-left text-sm font-medium">Status</th>
-                <th className="px-4 py-3 text-left text-sm font-medium">Score</th>
-                <th className="px-4 py-3 text-left text-sm font-medium">Risk</th>
-                <th className="px-4 py-3 text-left text-sm font-medium">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {filteredCandidates.map((candidate) => {
-                const statusInfo = statusLabels[candidate.status];
-                const StatusIcon = statusInfo?.icon || Clock;
+      {candidates.length === 0 ? (
+        <GlassCard className="py-12 text-center">
+          <Users className="mx-auto h-12 w-12 text-muted-foreground" />
+          <h3 className="mt-4 text-lg font-semibold">No candidates yet</h3>
+          <p className="mt-1 text-muted-foreground">
+            Candidates will appear here once they apply to your jobs
+          </p>
+          <Button variant="outline" className="mt-4" asChild>
+            <Link to="/dashboard/jobs/new">Post a Job</Link>
+          </Button>
+        </GlassCard>
+      ) : (
+        <GlassCard className="overflow-hidden p-0">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="border-b border-border bg-secondary/50">
+                <tr>
+                  <th className="px-4 py-3 text-left">
+                    <Checkbox
+                      checked={selectedCandidates.length === filteredCandidates.length && filteredCandidates.length > 0}
+                      onCheckedChange={toggleSelectAll}
+                    />
+                  </th>
+                  <th className="px-4 py-3 text-left text-sm font-medium">Candidate</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium">Job</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium">Stage</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium">Status</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium">Score</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium">Risk</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {filteredCandidates.map((candidate) => {
+                  const statusInfo = statusLabels[candidate.status];
+                  const StatusIcon = statusInfo?.icon || Clock;
 
-                return (
-                  <motion.tr
-                    key={candidate.id}
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    className="hover:bg-secondary/30"
-                  >
-                    <td className="px-4 py-3">
-                      <Checkbox
-                        checked={selectedCandidates.includes(candidate.id)}
-                        onCheckedChange={() => toggleSelect(candidate.id)}
-                      />
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-primary text-sm font-bold">
-                          {candidate.name.split(" ").map(n => n[0]).join("")}
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium">{candidate.name}</span>
-                            {candidate.verificationStatus === "verified" && (
-                              <Shield className="h-3 w-3 text-success" />
-                            )}
+                  return (
+                    <motion.tr
+                      key={candidate.id}
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      className="hover:bg-secondary/30"
+                    >
+                      <td className="px-4 py-3">
+                        <Checkbox
+                          checked={selectedCandidates.includes(candidate.id)}
+                          onCheckedChange={() => toggleSelect(candidate.id)}
+                        />
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-primary text-sm font-bold">
+                            {candidate.name.split(" ").map(n => n[0]).join("")}
                           </div>
-                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                            <span>{candidate.email}</span>
-                            {candidate.githubUrl && (
-                              <a href={candidate.githubUrl} target="_blank" rel="noopener noreferrer">
-                                <Github className="h-3 w-3 hover:text-foreground" />
-                              </a>
-                            )}
-                            {candidate.linkedinUrl && (
-                              <a href={candidate.linkedinUrl} target="_blank" rel="noopener noreferrer">
-                                <Linkedin className="h-3 w-3 hover:text-foreground" />
-                              </a>
-                            )}
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium">{candidate.name}</span>
+                              {candidate.verificationStatus === "verified" && (
+                                <Shield className="h-3 w-3 text-success" />
+                              )}
+                              {candidate.profileScore > 0 && (
+                                <span className="text-xs bg-primary/10 text-primary px-1.5 py-0.5 rounded">
+                                  {candidate.profileScore}pts
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                              <span>{candidate.email}</span>
+                              {candidate.githubUrl && (
+                                <a href={candidate.githubUrl} target="_blank" rel="noopener noreferrer">
+                                  <Github className="h-3 w-3 hover:text-foreground" />
+                                </a>
+                              )}
+                              {candidate.linkedinUrl && (
+                                <a href={candidate.linkedinUrl} target="_blank" rel="noopener noreferrer">
+                                  <Linkedin className="h-3 w-3 hover:text-foreground" />
+                                </a>
+                              )}
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className="text-sm">{candidate.job}</span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className="text-sm">{candidate.stage}</span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className={cn(
-                        "inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-medium",
-                        statusInfo?.color
-                      )}>
-                        <StatusIcon className="h-3 w-3" />
-                        {statusInfo?.label}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      {candidate.score > 0 ? (
-                        <TrustScoreBadge score={candidate.score} size="sm" />
-                      ) : (
-                        <span className="text-sm text-muted-foreground">—</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="w-20">
-                        <RiskMeter value={candidate.fraudFlags * 20} />
-                        {candidate.fraudFlags > 0 && (
-                          <span className="text-xs text-danger">{candidate.fraudFlags} flags</span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="text-sm">{candidate.job}</span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="text-sm">{candidate.stage}</span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={cn(
+                          "inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-medium",
+                          statusInfo?.color
+                        )}>
+                          <StatusIcon className="h-3 w-3" />
+                          {statusInfo?.label}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        {candidate.score > 0 ? (
+                          <TrustScoreBadge score={candidate.score} size="sm" />
+                        ) : (
+                          <span className="text-sm text-muted-foreground">—</span>
                         )}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        <Button variant="ghost" size="sm" asChild>
-                          <Link to={`/report/${candidate.id}`}>
-                            <Eye className="h-4 w-4" />
-                          </Link>
-                        </Button>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon">
-                              <MoreVertical className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem asChild>
-                              <Link to={`/report/${candidate.id}`}>
-                                <FileText className="mr-2 h-4 w-4" />
-                                View Full Report
-                              </Link>
-                            </DropdownMenuItem>
-                            <DropdownMenuItem>
-                              <Video className="mr-2 h-4 w-4" />
-                              Watch Recording
-                            </DropdownMenuItem>
-                            <DropdownMenuItem>
-                              <Download className="mr-2 h-4 w-4" />
-                              Download Resume
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem>
-                              <UserCheck className="mr-2 h-4 w-4" />
-                              Shortlist
-                            </DropdownMenuItem>
-                            <DropdownMenuItem>
-                              <ChevronRight className="mr-2 h-4 w-4" />
-                              Move to Next Round
-                            </DropdownMenuItem>
-                            <DropdownMenuItem className="text-danger">
-                              <UserX className="mr-2 h-4 w-4" />
-                              Reject
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
-                    </td>
-                  </motion.tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </GlassCard>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="w-20">
+                          <RiskMeter value={candidate.fraudFlags * 20} />
+                          {candidate.fraudFlags > 0 && (
+                            <span className="text-xs text-danger">{candidate.fraudFlags} flags</span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <Button variant="ghost" size="sm" asChild>
+                            <Link to={`/dashboard/candidates/${candidate.id}`}>
+                              <Eye className="h-4 w-4" />
+                            </Link>
+                          </Button>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon">
+                                <MoreVertical className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem asChild>
+                                <Link to={`/dashboard/candidates/${candidate.id}`}>
+                                  <FileText className="mr-2 h-4 w-4" />
+                                  View Full Report
+                                </Link>
+                              </DropdownMenuItem>
+                              <DropdownMenuItem>
+                                <Video className="mr-2 h-4 w-4" />
+                                Watch Recording
+                              </DropdownMenuItem>
+                              <DropdownMenuItem>
+                                <Download className="mr-2 h-4 w-4" />
+                                Download Resume
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem onClick={() => updateApplicationStatus(candidate.id, "shortlisted")}>
+                                <UserCheck className="mr-2 h-4 w-4" />
+                                Shortlist
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => updateApplicationStatus(candidate.id, "interviewing")}>
+                                <ChevronRight className="mr-2 h-4 w-4" />
+                                Move to Next Round
+                              </DropdownMenuItem>
+                              <DropdownMenuItem 
+                                className="text-danger"
+                                onClick={() => updateApplicationStatus(candidate.id, "rejected")}
+                              >
+                                <UserX className="mr-2 h-4 w-4" />
+                                Reject
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+                      </td>
+                    </motion.tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </GlassCard>
+      )}
     </div>
   );
 }

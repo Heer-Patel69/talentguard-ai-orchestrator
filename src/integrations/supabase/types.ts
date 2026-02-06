@@ -187,12 +187,19 @@ export type Database = {
           aadhaar_front_url: string | null
           aadhaar_number: string | null
           created_at: string
+          github_analysis: Json | null
+          github_score: number | null
           github_url: string | null
           id: string
+          linkedin_analysis: Json | null
+          linkedin_score: number | null
           linkedin_url: string | null
           live_photo_url: string | null
           phone_number: string
+          profile_analyzed_at: string | null
+          profile_score: number | null
           resume_url: string | null
+          skills: string[] | null
           updated_at: string
           user_id: string
           verification_confidence: number | null
@@ -205,12 +212,19 @@ export type Database = {
           aadhaar_front_url?: string | null
           aadhaar_number?: string | null
           created_at?: string
+          github_analysis?: Json | null
+          github_score?: number | null
           github_url?: string | null
           id?: string
+          linkedin_analysis?: Json | null
+          linkedin_score?: number | null
           linkedin_url?: string | null
           live_photo_url?: string | null
           phone_number: string
+          profile_analyzed_at?: string | null
+          profile_score?: number | null
           resume_url?: string | null
+          skills?: string[] | null
           updated_at?: string
           user_id: string
           verification_confidence?: number | null
@@ -223,12 +237,19 @@ export type Database = {
           aadhaar_front_url?: string | null
           aadhaar_number?: string | null
           created_at?: string
+          github_analysis?: Json | null
+          github_score?: number | null
           github_url?: string | null
           id?: string
+          linkedin_analysis?: Json | null
+          linkedin_score?: number | null
           linkedin_url?: string | null
           live_photo_url?: string | null
           phone_number?: string
+          profile_analyzed_at?: string | null
+          profile_score?: number | null
           resume_url?: string | null
+          skills?: string[] | null
           updated_at?: string
           user_id?: string
           verification_confidence?: number | null
@@ -644,6 +665,53 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      job_priorities: {
+        Row: {
+          candidate_id: string
+          created_at: string
+          id: string
+          is_favorited: boolean | null
+          job_id: string
+          match_score: number | null
+          matching_skills: string[] | null
+          notes: string | null
+          priority_level: number | null
+          updated_at: string
+        }
+        Insert: {
+          candidate_id: string
+          created_at?: string
+          id?: string
+          is_favorited?: boolean | null
+          job_id: string
+          match_score?: number | null
+          matching_skills?: string[] | null
+          notes?: string | null
+          priority_level?: number | null
+          updated_at?: string
+        }
+        Update: {
+          candidate_id?: string
+          created_at?: string
+          id?: string
+          is_favorited?: boolean | null
+          job_id?: string
+          match_score?: number | null
+          matching_skills?: string[] | null
+          notes?: string | null
+          priority_level?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "job_priorities_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       job_rounds: {
         Row: {
