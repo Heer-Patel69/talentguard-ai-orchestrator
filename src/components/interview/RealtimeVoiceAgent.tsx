@@ -130,7 +130,7 @@ export function RealtimeVoiceAgent({
       // Request microphone permission
       await navigator.mediaDevices.getUserMedia({ audio: true });
 
-      // Get signed URL from edge function (it auto-creates agent if needed)
+      // Get connection info from edge function
       const { data, error } = await supabase.functions.invoke(
         "elevenlabs-conversation-token",
         { body: { jobField, toughnessLevel, jobTitle } }
@@ -140,14 +140,27 @@ export function RealtimeVoiceAgent({
         throw new Error(error.message || "Failed to connect");
       }
 
-      if (!data?.signedUrl) {
-        throw new Error("No connection URL received");
+      // Try different connection methods based on what the server returned
+      if (data?.signedUrl) {
+        // Use WebSocket with signed URL
+        await conversation.startSession({
+          signedUrl: data.signedUrl,
+        });
+      } else if (data?.token) {
+        // Use WebRTC with conversation token
+        await conversation.startSession({
+          conversationToken: data.token,
+          connectionType: "webrtc",
+        });
+      } else if (data?.agentId && data?.usePublicMode) {
+        // Fallback to public agent mode (agent must be public in ElevenLabs dashboard)
+        await conversation.startSession({
+          agentId: data.agentId,
+          connectionType: "webrtc",
+        });
+      } else {
+        throw new Error("No valid connection method received from server");
       }
-
-      // Start the conversation with WebSocket using signed URL
-      await conversation.startSession({
-        signedUrl: data.signedUrl,
-      });
     } catch (error) {
       console.error("Failed to start conversation:", error);
       toast({
