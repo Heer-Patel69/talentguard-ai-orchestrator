@@ -39,6 +39,7 @@ import JobDetailsPage from "./pages/candidate/JobDetailsPage";
 import MyApplicationsPage from "./pages/candidate/MyApplicationsPage";
 import CandidateProfilePage from "./pages/candidate/CandidateProfilePage";
 import InterviewRoomPage from "./pages/candidate/InterviewRoomPage";
+import AIInterviewRoomPage from "./pages/candidate/AIInterviewRoomPage";
 
 const queryClient = new QueryClient();
 
@@ -137,8 +138,15 @@ const App = () => (
                   </ProtectedRoute>
                 }
               />
+              <Route
+                path="/candidate/interview/live"
+                element={
+                  <ProtectedRoute allowedRoles={["candidate"]}>
+                    <AIInterviewRoomPage />
+                  </ProtectedRoute>
+                }
+              />
 
-              {/* Protected Routes - Interviewer Dashboard */}
               <Route
                 path="/dashboard"
                 element={

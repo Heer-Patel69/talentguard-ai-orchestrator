@@ -210,8 +210,14 @@ export default function InterviewRoomPage() {
       stream.getTracks().forEach((track) => track.stop());
     }
 
-    // Navigate to the actual interview page
-    navigate(`/interview/${selectedInterview.application_id}`);
+    // Navigate to the AI interview room with interview type
+    const interviewType = selectedInterview.round_type === "dsa" || selectedInterview.round_type === "coding" 
+      ? "technical" 
+      : selectedInterview.round_type === "system_design" 
+        ? "system-design" 
+        : "behavioral";
+    
+    navigate(`/candidate/interview/live?type=${interviewType}&application=${selectedInterview.application_id}`);
   };
 
   const getStatusIcon = (status: SystemCheck["status"]) => {
