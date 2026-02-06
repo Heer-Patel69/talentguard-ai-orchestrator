@@ -359,8 +359,40 @@ export async function notifyCandidate(
   type: 'stage_passed' | 'stage_failed' | 'interview_ready' | 'final_result',
   data: Record<string, unknown>
 ): Promise<void> {
-  // In a real implementation, this would send emails or push notifications
   console.log(`Notifying candidate ${candidateId}:`, type, data);
   
-  // For now, we'll just log it - could integrate with email service later
+  // Only send email for final results
+  if (type === 'final_result') {
+    try {
+      // Get candidate details
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('email, full_name')
+        .eq('user_id', candidateId)
+        .single();
+
+      if (!profile?.email) {
+        console.error('No email found for candidate:', candidateId);
+        return;
+      }
+
+      // Send notification email
+      await supabase.functions.invoke('send-candidate-notification', {
+        body: {
+          candidateEmail: profile.email,
+          candidateName: profile.full_name || 'Candidate',
+          jobTitle: data.jobTitle as string || 'Position',
+          companyName: data.companyName as string || '',
+          isSelected: data.isSelected as boolean,
+          interviewScore: data.interviewScore as number,
+          feedback: data.feedback as { strengths?: string[]; improvements?: string[]; overallComment?: string },
+          nextSteps: data.nextSteps as string,
+        },
+      });
+
+      console.log('Notification email sent to:', profile.email);
+    } catch (error) {
+      console.error('Failed to send notification email:', error);
+    }
+  }
 }
