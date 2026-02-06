@@ -45,7 +45,7 @@ interface SystemCheck {
 }
 
 export default function InterviewRoomPage() {
-  const { user } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -65,8 +65,13 @@ export default function InterviewRoomPage() {
   ]);
 
   useEffect(() => {
+    // Wait for auth to finish loading before fetching interviews
+    if (authLoading) return;
+    
     if (user) {
       fetchPendingInterviews();
+    } else {
+      setIsLoading(false);
     }
 
     return () => {
@@ -75,7 +80,7 @@ export default function InterviewRoomPage() {
         stream.getTracks().forEach((track) => track.stop());
       }
     };
-  }, [user]);
+  }, [user, authLoading]);
 
   const fetchPendingInterviews = async () => {
     try {
@@ -233,14 +238,29 @@ export default function InterviewRoomPage() {
       stream.getTracks().forEach((track) => track.stop());
     }
 
-    // Navigate to the AI interview room with interview type
-    const interviewType = selectedInterview.round_type === "dsa" || selectedInterview.round_type === "coding" 
-      ? "technical" 
-      : selectedInterview.round_type === "system_design" 
-        ? "system-design" 
-        : "behavioral";
+    const { round_type, application_id } = selectedInterview;
     
-    navigate(`/candidate/interview/live?type=${interviewType}&application=${selectedInterview.application_id}`);
+    // Route to appropriate assessment page based on round type
+    switch (round_type) {
+      case "mcq":
+        navigate(`/candidate/assessment/mcq?application=${application_id}`);
+        break;
+      case "coding":
+      case "dsa":
+        navigate(`/candidate/assessment/coding?application=${application_id}`);
+        break;
+      case "behavioral":
+        navigate(`/candidate/interview/live?type=behavioral&application=${application_id}`);
+        break;
+      case "system_design":
+        navigate(`/candidate/interview/live?type=system-design&application=${application_id}`);
+        break;
+      case "technical":
+      case "interview":
+      default:
+        navigate(`/candidate/interview/live?type=technical&application=${application_id}`);
+        break;
+    }
   };
 
   const getStatusIcon = (status: SystemCheck["status"]) => {
@@ -256,7 +276,7 @@ export default function InterviewRoomPage() {
     }
   };
 
-  if (isLoading) {
+  if (isLoading || authLoading) {
     return (
       <div className="flex h-64 items-center justify-center">
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-success border-t-transparent" />
