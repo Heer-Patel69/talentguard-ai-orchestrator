@@ -4,12 +4,12 @@ import { useRef } from "react";
 import confetti from "canvas-confetti";
 import { Button } from "@/components/ui/button";
 import { GlassCard } from "@/components/ui/glass-card";
-import { Container, Section, SectionHeader, PageBackground } from "@/components/ui/layout";
+import { Container, Section, SectionHeader } from "@/components/ui/layout";
 import { Navbar, Footer } from "@/components/layout/Navbar";
 import { AnimatedCounter } from "@/components/ui/animated-counter";
 import { TypewriterText } from "@/components/ui/animated-gradient-border";
+import { InteractiveBackground } from "@/components/ui/interactive-background";
 import { staggerContainer, staggerItem, hoverLift, fadeInUp } from "@/lib/animation-presets";
-import heroBg from "@/assets/hero-bg.jpg";
 import {
   Brain,
   Eye,
@@ -108,21 +108,13 @@ export default function LandingPage() {
 
   return (
     <div className="min-h-screen overflow-x-hidden">
-      <PageBackground pattern="grid" />
-      
-      {/* Mesh gradient overlay */}
-      <div className="fixed inset-0 -z-10 mesh-gradient-bg opacity-50 pointer-events-none" />
-      
-      {/* Hero Background Image */}
-      <motion.div 
-        className="fixed inset-0 -z-10 opacity-20 dark:opacity-30"
-        style={{
-          backgroundImage: `url(${heroBg})`,
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-          backgroundRepeat: 'no-repeat',
-          y: heroY,
-        }}
+      {/* Interactive cursor-following background */}
+      <InteractiveBackground 
+        particleCount={60}
+        enableParticles={true}
+        enableGradientOrbs={true}
+        enableGridPattern={true}
+        enableNoise={true}
       />
       
       <Navbar />
