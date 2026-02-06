@@ -84,6 +84,28 @@ export function RealtimeVoiceAgent({
           };
           setMessages((prev) => [...prev, voiceMessage]);
           onMessage?.(voiceMessage);
+          
+          // Check if user wants to end the interview
+          const endPhrases = [
+            "end the meeting", "end meeting", "end the interview", "end interview",
+            "stop the interview", "stop interview", "finish interview", "finish the interview",
+            "that's all", "i'm done", "im done", "goodbye", "bye", "thank you bye",
+            "end call", "end the call", "disconnect", "leave meeting", "leave the meeting"
+          ];
+          const lowerTranscript = userTranscript.toLowerCase().trim();
+          const shouldEnd = endPhrases.some(phrase => lowerTranscript.includes(phrase));
+          
+          if (shouldEnd) {
+            console.log("User requested to end interview:", userTranscript);
+            // Give AI a moment to respond gracefully, then end
+            setTimeout(async () => {
+              await conversation.endSession();
+              toast({
+                title: "Interview Ended",
+                description: "Thank you for completing the interview!",
+              });
+            }, 3000); // Wait 3 seconds for AI to say goodbye
+          }
         }
       }
       
@@ -174,9 +196,19 @@ export function RealtimeVoiceAgent({
   }, [jobField, toughnessLevel, jobTitle, conversation, toast]);
 
   const stopConversation = useCallback(async () => {
-    await conversation.endSession();
-    setMessages([]);
-  }, [conversation]);
+    try {
+      await conversation.endSession();
+      setMessages([]);
+      toast({
+        title: "Interview Ended",
+        description: "The voice interview has been disconnected.",
+      });
+    } catch (error) {
+      console.error("Error ending conversation:", error);
+      // Force disconnect by reloading if needed
+      setMessages([]);
+    }
+  }, [conversation, toast]);
 
   const toggleMute = useCallback(() => {
     setIsMuted((prev) => !prev);
