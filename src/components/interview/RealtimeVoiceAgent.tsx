@@ -62,12 +62,12 @@ export function RealtimeVoiceAgent({
 
   const conversation = useConversation({
     onConnect: () => {
-      console.log("Connected to ElevenLabs agent");
+      console.log("✅ Connected to ElevenLabs agent successfully");
       reconnectAttemptRef.current = 0; // Reset on successful connect
       onConnectionChange?.(true);
       toast({
         title: "Connected",
-        description: "Voice interview started. Speak naturally!",
+        description: "Voice interview started. Speak naturally - the AI is listening!",
       });
     },
     onDisconnect: () => {
@@ -139,25 +139,49 @@ export function RealtimeVoiceAgent({
       }
     },
     onError: (error) => {
-      console.error("Conversation error:", error);
+      console.error("❌ Conversation error:", error);
       
-      // Don't show error for minor glitches - only for actual failures
-      if (error?.message?.includes("connection") || error?.message?.includes("WebSocket")) {
-        // Attempt auto-reconnect for connection issues
+      // Check for specific error types
+      const errorMessage = error?.message || String(error);
+      
+      if (errorMessage.includes("permission") || errorMessage.includes("denied")) {
+        toast({
+          title: "Microphone Permission Required",
+          description: "Please allow microphone access to use voice interview.",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      // Handle connection issues with auto-reconnect
+      if (errorMessage.includes("connection") || errorMessage.includes("WebSocket") || errorMessage.includes("network")) {
         if (reconnectAttemptRef.current < maxReconnectAttempts) {
           reconnectAttemptRef.current++;
-          console.log(`Attempting reconnection ${reconnectAttemptRef.current}/${maxReconnectAttempts}`);
+          console.log(`🔄 Attempting reconnection ${reconnectAttemptRef.current}/${maxReconnectAttempts}`);
+          
+          toast({
+            title: "Reconnecting...",
+            description: `Connection hiccup. Attempt ${reconnectAttemptRef.current}/${maxReconnectAttempts}`,
+          });
           
           setTimeout(() => {
             startConversation();
           }, 1000 * reconnectAttemptRef.current); // Exponential backoff
           return;
         }
+        
+        toast({
+          title: "Connection Failed",
+          description: "Unable to connect to voice server. Please check your internet connection and try again.",
+          variant: "destructive",
+        });
+        return;
       }
       
+      // Generic error handling
       toast({
-        title: "Connection Issue",
-        description: "The voice connection experienced a minor hiccup. You can continue speaking normally.",
+        title: "Voice Error",
+        description: "There was an issue with the voice connection. Please try again.",
         variant: "default",
       });
     },
@@ -178,47 +202,94 @@ export function RealtimeVoiceAgent({
   const startConversation = useCallback(async () => {
     setIsConnecting(true);
     try {
-      // Request microphone permission
-      await navigator.mediaDevices.getUserMedia({ audio: true });
+      // First, verify microphone permission (ElevenLabs SDK will request its own stream)
+      try {
+        const testStream = await navigator.mediaDevices.getUserMedia({ 
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+          } 
+        });
+        // Stop the test stream immediately - ElevenLabs SDK manages its own
+        testStream.getTracks().forEach(track => track.stop());
+        console.log("✅ Microphone permission verified");
+      } catch (micError) {
+        console.error("❌ Microphone permission denied:", micError);
+        toast({
+          title: "Microphone Access Required",
+          description: "Please allow microphone access to start the voice interview.",
+          variant: "destructive",
+        });
+        setIsConnecting(false);
+        return;
+      }
 
       // Get connection info from edge function
+      console.log("🔄 Fetching connection credentials...");
       const { data, error } = await supabase.functions.invoke(
         "elevenlabs-conversation-token",
         { body: { jobField, toughnessLevel, jobTitle } }
       );
 
       if (error) {
-        throw new Error(error.message || "Failed to connect");
+        console.error("❌ Edge function error:", error);
+        throw new Error(error.message || "Failed to connect to voice server");
       }
+
+      console.log("📡 Connection data received:", { 
+        hasSignedUrl: !!data?.signedUrl, 
+        hasToken: !!data?.token,
+        usePublicMode: data?.usePublicMode,
+        agentId: data?.agentId ? `${data.agentId.substring(0, 10)}...` : null
+      });
 
       // Try different connection methods based on what the server returned
       if (data?.signedUrl) {
-        // Use WebSocket with signed URL
+        // Use WebSocket with signed URL (most reliable for authenticated agents)
+        console.log("🔗 Connecting with signed URL (WebSocket)...");
         await conversation.startSession({
           signedUrl: data.signedUrl,
         });
       } else if (data?.token) {
         // Use WebRTC with conversation token
+        console.log("🔗 Connecting with conversation token (WebRTC)...");
         await conversation.startSession({
           conversationToken: data.token,
-          connectionType: "webrtc",
         });
-      } else if (data?.agentId && data?.usePublicMode) {
-        // Fallback to public agent mode (agent must be public in ElevenLabs dashboard)
+      } else if (data?.agentId) {
+        // Fallback to public agent mode
+        console.log("🔗 Connecting to public agent:", data.agentId);
+        if (data?.message) {
+          console.warn("⚠️", data.message);
+        }
         await conversation.startSession({
-          agentId: data.agentId,
-          connectionType: "webrtc",
+          agentId: data.agentId as string,
+        } as any);
+      } else {
+        throw new Error("No valid connection method available. Please check your ElevenLabs configuration.");
+      }
+      
+      console.log("✅ Session started successfully");
+    } catch (error) {
+      console.error("❌ Failed to start conversation:", error);
+      
+      const errorMessage = error instanceof Error ? error.message : "Could not start voice interview";
+      
+      // Provide more helpful error messages
+      if (errorMessage.includes("public") || errorMessage.includes("agent")) {
+        toast({
+          title: "Voice Agent Not Available",
+          description: "Please ensure the ElevenLabs agent is set to 'public' mode in the dashboard.",
+          variant: "destructive",
         });
       } else {
-        throw new Error("No valid connection method received from server");
+        toast({
+          title: "Failed to Start",
+          description: errorMessage,
+          variant: "destructive",
+        });
       }
-    } catch (error) {
-      console.error("Failed to start conversation:", error);
-      toast({
-        title: "Failed to Start",
-        description: error instanceof Error ? error.message : "Could not start voice interview",
-        variant: "destructive",
-      });
     } finally {
       setIsConnecting(false);
     }

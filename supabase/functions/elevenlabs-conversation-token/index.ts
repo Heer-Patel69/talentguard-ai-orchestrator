@@ -21,24 +21,12 @@ serve(async (req) => {
       throw new Error("ELEVENLABS_AGENT_ID is not configured. Please create an agent at elevenlabs.io/app/conversational-ai and add the agent ID as a secret.");
     }
 
-    // Get a conversation token for WebRTC connection (doesn't require convai_write permission)
-    const response = await fetch(
-      `https://api.elevenlabs.io/v1/convai/conversation/get_signed_url?agent_id=${ELEVENLABS_AGENT_ID}`,
-      {
-        method: "GET",
-        headers: {
-          "xi-api-key": ELEVENLABS_API_KEY,
-        },
-      }
-    );
+    console.log("Attempting to get connection for agent:", ELEVENLABS_AGENT_ID);
 
-    // If signed URL fails, try the token endpoint for WebRTC
-    if (!response.ok) {
-      console.log("Signed URL failed, trying token endpoint...");
-      
-      // Use the token endpoint which has different permission requirements
-      const tokenResponse = await fetch(
-        `https://api.elevenlabs.io/v1/convai/conversation/get_token?agent_id=${ELEVENLABS_AGENT_ID}`,
+    // Method 1: Try to get signed URL for WebSocket connection
+    try {
+      const signedUrlResponse = await fetch(
+        `https://api.elevenlabs.io/v1/convai/conversation/get-signed-url?agent_id=${ELEVENLABS_AGENT_ID}`,
         {
           method: "GET",
           headers: {
@@ -47,37 +35,84 @@ serve(async (req) => {
         }
       );
 
-      if (!tokenResponse.ok) {
-        const errorText = await tokenResponse.text();
-        console.error("ElevenLabs token error:", tokenResponse.status, errorText);
-        
-        // Return the agent ID so client can try direct connection with public agent
+      if (signedUrlResponse.ok) {
+        const data = await signedUrlResponse.json();
+        console.log("Successfully obtained signed URL");
         return new Response(
           JSON.stringify({ 
-            agentId: ELEVENLABS_AGENT_ID,
-            usePublicMode: true,
-            message: "Using public agent mode - ensure agent is set to public in ElevenLabs dashboard"
+            signedUrl: data.signed_url,
+            agentId: ELEVENLABS_AGENT_ID 
           }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
-
-      const tokenData = await tokenResponse.json();
-      return new Response(
-        JSON.stringify({ 
-          token: tokenData.token,
-          agentId: ELEVENLABS_AGENT_ID 
-        }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      
+      const errorText = await signedUrlResponse.text();
+      console.log("Signed URL endpoint response:", signedUrlResponse.status, errorText);
+    } catch (e) {
+      console.log("Signed URL request failed:", e.message);
     }
 
-    const data = await response.json();
+    // Method 2: Try to get conversation token
+    try {
+      const tokenResponse = await fetch(
+        `https://api.elevenlabs.io/v1/convai/conversation/token?agent_id=${ELEVENLABS_AGENT_ID}`,
+        {
+          method: "GET",
+          headers: {
+            "xi-api-key": ELEVENLABS_API_KEY,
+          },
+        }
+      );
 
+      if (tokenResponse.ok) {
+        const tokenData = await tokenResponse.json();
+        console.log("Successfully obtained conversation token");
+        return new Response(
+          JSON.stringify({ 
+            token: tokenData.token,
+            agentId: ELEVENLABS_AGENT_ID 
+          }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      
+      const errorText = await tokenResponse.text();
+      console.log("Token endpoint response:", tokenResponse.status, errorText);
+    } catch (e) {
+      console.log("Token request failed:", e.message);
+    }
+
+    // Method 3: Verify the API key is valid by checking user info
+    try {
+      const userResponse = await fetch(
+        "https://api.elevenlabs.io/v1/user",
+        {
+          method: "GET",
+          headers: {
+            "xi-api-key": ELEVENLABS_API_KEY,
+          },
+        }
+      );
+
+      if (userResponse.ok) {
+        const userData = await userResponse.json();
+        console.log("API key is valid. User:", userData.xi_api_key ? "authenticated" : "unknown");
+      } else {
+        console.log("API key validation failed:", userResponse.status);
+      }
+    } catch (e) {
+      console.log("User API check failed:", e.message);
+    }
+
+    // Fallback: Return agent ID for public mode connection
+    // The client will connect directly to the agent if it's set to public
+    console.log("Falling back to public agent mode - ensure agent is set to public in ElevenLabs dashboard");
     return new Response(
       JSON.stringify({ 
-        signedUrl: data.signed_url,
-        agentId: ELEVENLABS_AGENT_ID 
+        agentId: ELEVENLABS_AGENT_ID,
+        usePublicMode: true,
+        message: "Using public agent mode. If voice doesn't work, ensure the agent is set to 'public' in your ElevenLabs dashboard."
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
