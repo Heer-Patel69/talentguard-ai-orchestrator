@@ -26,7 +26,6 @@ import {
   ArrowLeft,
   Flag,
   AlertTriangle,
-  Trophy,
   Brain,
   Loader2,
   BookOpen,
@@ -35,6 +34,8 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
+import { useJobRoundConfig, useNextRound } from "@/hooks/useJobRoundConfig";
+import { AssessmentComplete } from "@/components/assessment/AssessmentComplete";
 
 interface MCQQuestion {
   id: string;
@@ -44,7 +45,7 @@ interface MCQQuestion {
   difficulty: "easy" | "medium" | "hard" | "expert";
   topic: string;
   points: number;
-  timeLimit: number; // seconds
+  timeLimit: number;
 }
 
 interface Answer {
@@ -56,8 +57,6 @@ interface Answer {
 
 type AssessmentStatus = "loading" | "ready" | "in-progress" | "submitting" | "completed";
 
-const TOTAL_TIME = 45 * 60; // 45 minutes
-
 export default function MCQAssessmentPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -65,6 +64,11 @@ export default function MCQAssessmentPage() {
   const { toast } = useToast();
 
   const applicationId = searchParams.get("application");
+  
+  // Fetch job configuration to get correct number of questions
+  const { data: jobConfig, isLoading: configLoading } = useJobRoundConfig(applicationId);
+  const currentRoundNumber = jobConfig?.currentRoundNumber || 1;
+  const { data: nextRound } = useNextRound(applicationId, currentRoundNumber);
 
   // Assessment state
   const [status, setStatus] = useState<AssessmentStatus>("loading");
@@ -73,8 +77,9 @@ export default function MCQAssessmentPage() {
   const [answers, setAnswers] = useState<Map<string, Answer>>(new Map());
   const [selectedOptions, setSelectedOptions] = useState<number[]>([]);
 
-  // Timer state
-  const [totalTimeRemaining, setTotalTimeRemaining] = useState(TOTAL_TIME);
+  // Timer state - use configured duration or default
+  const configuredTime = (jobConfig?.currentRound?.duration_minutes || 45) * 60;
+  const [totalTimeRemaining, setTotalTimeRemaining] = useState(configuredTime);
   const [questionTimeRemaining, setQuestionTimeRemaining] = useState(60);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -97,10 +102,12 @@ export default function MCQAssessmentPage() {
 
   const currentQuestion = questions[currentIndex];
 
-  // Load questions on mount
+  // Load questions when config is available
   useEffect(() => {
-    loadQuestions();
-  }, [applicationId]);
+    if (jobConfig && !configLoading) {
+      loadQuestions();
+    }
+  }, [jobConfig, configLoading]);
 
   // Timer effect
   useEffect(() => {
@@ -117,7 +124,6 @@ export default function MCQAssessmentPage() {
 
       setQuestionTimeRemaining((prev) => {
         if (prev <= 1) {
-          // Auto-move to next question
           handleNext();
           return currentQuestion?.timeLimit || 60;
         }
@@ -156,19 +162,56 @@ export default function MCQAssessmentPage() {
 
   const loadQuestions = async () => {
     try {
+      const currentRound = jobConfig?.currentRound;
+      const job = jobConfig?.job;
+      
+      // Check if custom questions exist and AI generation is disabled
+      const hasCustomQuestions = currentRound?.custom_questions && 
+        Array.isArray(currentRound.custom_questions) && 
+        currentRound.custom_questions.length > 0;
+      const useAI = currentRound?.ai_generate_questions !== false;
+
+      if (hasCustomQuestions && !useAI) {
+        // Use company's custom questions
+        const customQuestions = currentRound.custom_questions as any[];
+        const formattedQuestions: MCQQuestion[] = customQuestions.map((q, i) => ({
+          id: `custom-${i}`,
+          question: q.question || q,
+          options: q.options || ["Option A", "Option B", "Option C", "Option D"],
+          type: "single",
+          difficulty: q.difficulty || "medium",
+          topic: q.topic || job?.field || "General",
+          points: 1,
+          timeLimit: 60,
+        }));
+        setQuestions(formattedQuestions);
+        setQuestionTimeRemaining(60);
+        setStatus("ready");
+        return;
+      }
+
+      // Determine number of questions from round config
+      let numQuestions = 25; // Default
+      if (job?.round_config && typeof job.round_config === "object") {
+        const rc = job.round_config as any;
+        if (rc.mcq?.num_questions) {
+          numQuestions = rc.mcq.num_questions;
+        }
+      }
+
       // Generate questions via AI
       const { data, error } = await supabase.functions.invoke("generate-mcq-questions", {
         body: {
           applicationId,
-          field: "Data Structures and Algorithms",
-          toughnessLevel: 3,
-          numQuestions: 25,
+          field: job?.field || "Data Structures and Algorithms",
+          toughnessLevel: getToughnessNumber(job?.toughness_level || "medium"),
+          numQuestions,
         },
       });
 
-      if (error) {
+      if (error || !data?.questions) {
         // Use sample questions if AI fails
-        const sampleQuestions = generateSampleQuestions();
+        const sampleQuestions = generateSampleQuestions(numQuestions, job?.field || "DSA");
         setQuestions(sampleQuestions);
       } else {
         setQuestions(data.questions);
@@ -178,25 +221,31 @@ export default function MCQAssessmentPage() {
       setStatus("ready");
     } catch (error) {
       console.error("Error loading questions:", error);
-      const sampleQuestions = generateSampleQuestions();
+      const numQuestions = 10; // Fallback
+      const sampleQuestions = generateSampleQuestions(numQuestions, "DSA");
       setQuestions(sampleQuestions);
       setStatus("ready");
     }
   };
 
-  const generateSampleQuestions = (): MCQQuestion[] => {
+  const getToughnessNumber = (level: string): number => {
+    const map: Record<string, number> = { easy: 1, medium: 2, hard: 3, expert: 4 };
+    return map[level] || 2;
+  };
+
+  const generateSampleQuestions = (count: number, field: string): MCQQuestion[] => {
     const topics = ["Arrays", "Linked Lists", "Trees", "Graphs", "Dynamic Programming", "Sorting", "Searching"];
     const difficulties: MCQQuestion["difficulty"][] = ["easy", "medium", "hard", "expert"];
 
-    return Array.from({ length: 25 }, (_, i) => ({
+    return Array.from({ length: count }, (_, i) => ({
       id: `q-${i + 1}`,
       question: getSampleQuestion(i),
       options: getSampleOptions(i),
       type: i % 5 === 0 ? "multiple" : "single",
-      difficulty: difficulties[Math.min(Math.floor(i / 7), 3)],
+      difficulty: difficulties[Math.min(Math.floor(i / (count / 4)), 3)],
       topic: topics[i % topics.length],
-      points: Math.floor(i / 7) + 1,
-      timeLimit: 60 + (Math.floor(i / 7) * 15),
+      points: Math.floor(i / (count / 4)) + 1,
+      timeLimit: 60 + (Math.floor(i / (count / 4)) * 15),
     }));
   };
 
@@ -212,21 +261,6 @@ export default function MCQAssessmentPage() {
       "Which algorithm is used to detect a cycle in a linked list?",
       "What is the time complexity of inserting an element at the beginning of an array?",
       "Which data structure is used for BFS traversal?",
-      "What is the worst case time complexity of heapsort?",
-      "In a min-heap, where is the minimum element stored?",
-      "What is the time complexity of finding the median in an unsorted array?",
-      "Which sorting algorithm has the best worst-case time complexity?",
-      "What is the time complexity of DFS traversal?",
-      "Which technique is used in Kruskal's algorithm?",
-      "What is the time complexity of Dijkstra's algorithm with a min-heap?",
-      "How many edges does a tree with n nodes have?",
-      "What is the time complexity of the knapsack problem using dynamic programming?",
-      "Which data structure is used to implement an LRU cache?",
-      "What is the amortized time complexity of push operation in a dynamic array?",
-      "Which algorithm is used to find strongly connected components?",
-      "What is the time complexity of matrix chain multiplication?",
-      "Which technique is used in Floyd-Warshall algorithm?",
-      "What is the space complexity of recursive DFS?",
     ];
     return questions[index % questions.length];
   };
@@ -243,27 +277,13 @@ export default function MCQAssessmentPage() {
       ["Floyd's algorithm", "Dijkstra's algorithm", "Kruskal's algorithm", "Prim's algorithm"],
       ["O(1)", "O(n)", "O(log n)", "O(n²)"],
       ["Stack", "Queue", "Priority Queue", "Deque"],
-      ["O(n)", "O(n log n)", "O(n²)", "O(log n)"],
-      ["Root node", "Last node", "Random position", "First leaf"],
-      ["O(1)", "O(n)", "O(n log n)", "O(n²)"],
-      ["Merge sort", "Quick sort", "Heap sort", "Bubble sort"],
-      ["O(V)", "O(E)", "O(V + E)", "O(V × E)"],
-      ["Divide and conquer", "Greedy", "Dynamic programming", "Backtracking"],
-      ["O(V²)", "O(E log V)", "O(V log V)", "O(E + V)"],
-      ["n", "n-1", "n+1", "2n-1"],
-      ["O(nW)", "O(n²)", "O(2^n)", "O(n log n)"],
-      ["HashMap + LinkedList", "Array", "Binary Tree", "Stack"],
-      ["O(1)", "O(n)", "O(log n)", "O(n²)"],
-      ["Kosaraju's algorithm", "Dijkstra's algorithm", "Bellman-Ford", "Floyd-Warshall"],
-      ["O(n²)", "O(n³)", "O(2^n)", "O(n log n)"],
-      ["Greedy", "Dynamic programming", "Divide and conquer", "Backtracking"],
-      ["O(1)", "O(V)", "O(E)", "O(V + E)"],
     ];
     return optionSets[index % optionSets.length];
   };
 
   const startAssessment = () => {
     setStatus("in-progress");
+    setTotalTimeRemaining(configuredTime);
     setQuestionTimeRemaining(questions[0]?.timeLimit || 60);
   };
 
@@ -337,7 +357,6 @@ export default function MCQAssessmentPage() {
     saveAnswer();
     setStatus("submitting");
 
-    // Calculate results
     let correct = 0;
     let wrong = 0;
     let skipped = 0;
@@ -353,7 +372,7 @@ export default function MCQAssessmentPage() {
       if (!answer || answer.selectedOptions.length === 0) {
         skipped++;
       } else {
-        // For demo, assume first option is correct
+        // For demo, assume second option (index 1) is correct
         const isCorrect = answer.selectedOptions.includes(1);
         if (isCorrect) {
           correct++;
@@ -377,7 +396,7 @@ export default function MCQAssessmentPage() {
   };
 
   // Loading screen
-  if (status === "loading") {
+  if (status === "loading" || configLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
@@ -410,7 +429,7 @@ export default function MCQAssessmentPage() {
               <div className="flex items-center gap-3 p-3 rounded-lg bg-secondary/50">
                 <Clock className="h-5 w-5 text-primary" />
                 <div>
-                  <p className="font-medium">Time Limit: 45 minutes</p>
+                  <p className="font-medium">Time Limit: {Math.floor(configuredTime / 60)} minutes</p>
                   <p className="text-sm text-muted-foreground">Each question has its own time limit</p>
                 </div>
               </div>
@@ -448,111 +467,20 @@ export default function MCQAssessmentPage() {
     );
   }
 
-  // Completed screen
+  // Completed screen - use new component
   if (status === "completed" && results) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-4">
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="max-w-2xl w-full"
-        >
-          <GlassCard>
-            <div className="text-center mb-8">
-              <motion.div
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                transition={{ type: "spring", delay: 0.2 }}
-              >
-                <div className={cn(
-                  "h-24 w-24 rounded-full flex items-center justify-center mx-auto mb-4",
-                  results.score >= 60 ? "bg-success/10" : "bg-danger/10"
-                )}>
-                  <Trophy className={cn(
-                    "h-12 w-12",
-                    results.score >= 60 ? "text-success" : "text-danger"
-                  )} />
-                </div>
-              </motion.div>
-              <h1 className="text-2xl font-bold mb-2">Assessment Complete!</h1>
-              <p className="text-muted-foreground">Here's how you performed</p>
-            </div>
-
-            {/* Score card */}
-            <div className={cn(
-              "p-6 rounded-xl mb-6",
-              results.score >= 60 ? "bg-success/10" : "bg-danger/10"
-            )}>
-              <div className="flex items-center justify-between mb-4">
-                <span className="text-lg font-medium">Your Score</span>
-                <span className={cn(
-                  "text-4xl font-bold",
-                  results.score >= 60 ? "text-success" : "text-danger"
-                )}>
-                  {results.score}%
-                </span>
-              </div>
-              <Progress value={results.score} className="h-3" />
-            </div>
-
-            {/* Stats grid */}
-            <div className="grid grid-cols-3 gap-4 mb-6">
-              <div className="p-4 rounded-lg bg-success/10 text-center">
-                <CheckCircle2 className="h-6 w-6 text-success mx-auto mb-2" />
-                <p className="text-2xl font-bold text-success">{results.correct}</p>
-                <p className="text-sm text-muted-foreground">Correct</p>
-              </div>
-              <div className="p-4 rounded-lg bg-danger/10 text-center">
-                <XCircle className="h-6 w-6 text-danger mx-auto mb-2" />
-                <p className="text-2xl font-bold text-danger">{results.wrong}</p>
-                <p className="text-sm text-muted-foreground">Wrong</p>
-              </div>
-              <div className="p-4 rounded-lg bg-warning/10 text-center">
-                <Clock className="h-6 w-6 text-warning mx-auto mb-2" />
-                <p className="text-2xl font-bold text-warning">{results.skipped}</p>
-                <p className="text-sm text-muted-foreground">Skipped</p>
-              </div>
-            </div>
-
-            {/* Topic breakdown */}
-            <div className="mb-6">
-              <h3 className="font-semibold mb-3">Topic Performance</h3>
-              <div className="space-y-2">
-                {Object.entries(results.topicBreakdown).map(([topic, data]) => (
-                  <div key={topic} className="flex items-center gap-3">
-                    <span className="text-sm w-32 truncate">{topic}</span>
-                    <Progress
-                      value={(data.correct / data.total) * 100}
-                      className="flex-1 h-2"
-                    />
-                    <span className="text-sm text-muted-foreground w-16 text-right">
-                      {data.correct}/{data.total}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {tabSwitches > 0 && (
-              <div className="p-3 rounded-lg bg-warning/10 border border-warning/30 mb-6">
-                <div className="flex items-center gap-2 text-sm text-warning">
-                  <AlertTriangle className="h-4 w-4" />
-                  {tabSwitches} tab switch{tabSwitches > 1 ? "es" : ""} detected during assessment
-                </div>
-              </div>
-            )}
-
-            <div className="flex gap-3">
-              <Button variant="outline" className="flex-1" onClick={() => navigate("/candidate/applications")}>
-                View Applications
-              </Button>
-              <Button className="flex-1" onClick={() => navigate("/candidate")}>
-                Back to Dashboard
-              </Button>
-            </div>
-          </GlassCard>
-        </motion.div>
-      </div>
+      <AssessmentComplete
+        results={results}
+        applicationId={applicationId}
+        nextRound={nextRound ? {
+          round_number: nextRound.round_number,
+          round_type: nextRound.round_type,
+          duration_minutes: nextRound.duration_minutes,
+        } : null}
+        roundType="mcq"
+        passingScore={60}
+      />
     );
   }
 

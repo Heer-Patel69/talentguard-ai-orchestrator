@@ -4,3 +4,4 @@ export { RiskHeatmap } from "./RiskHeatmap";
 export { OverrideDialog } from "./OverrideDialog";
 export { CandidateComparison } from "./CandidateComparison";
 export { ExportPanel } from "./ExportPanel";
+export { CustomQuestionsEditor } from "./CustomQuestionsEditor";
