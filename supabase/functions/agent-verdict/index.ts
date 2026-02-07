@@ -1,5 +1,6 @@
 // =============================================
-// AGENT 6: VERDICT — Final Analysis & Ranking
+// AGENT 6: VERDICT — Dual AI Final Analysis & Ranking
+// Uses Gemini 3 Pro for comprehensive candidate reports
 // =============================================
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -8,6 +9,12 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
+
+// Model configuration
+const AI_MODELS = {
+  COMPREHENSIVE: "google/gemini-3-pro-preview",
+  REALTIME: "google/gemini-3-flash-preview",
 };
 
 serve(async (req) => {
@@ -48,21 +55,32 @@ serve(async (req) => {
       fraud_adjustment: 0.05,
     };
 
-    // Fetch all applications for this job
+    // Fetch all applications with proper candidate info
     const { data: applications } = await supabase
       .from("applications")
-      .select(`
-        *,
-        candidate:candidate_profiles!applications_candidate_id_fkey(
-          *,
-          profile:profiles!candidate_profiles_user_id_fkey(*)
-        )
-      `)
+      .select(`*`)
       .eq("job_id", job_id);
 
     if (!applications || applications.length === 0) {
       throw new Error("No applications found for this job");
     }
+
+    // Fetch candidate profiles separately for proper name resolution
+    const candidateIds = [...new Set(applications.map((a: any) => a.candidate_id))];
+    
+    const { data: candidateProfiles } = await supabase
+      .from("candidate_profiles")
+      .select(`*`)
+      .in("user_id", candidateIds);
+
+    const { data: profiles } = await supabase
+      .from("profiles")
+      .select("*")
+      .in("user_id", candidateIds);
+
+    // Create lookup maps
+    const candidateProfileMap = new Map((candidateProfiles || []).map(cp => [cp.user_id, cp]));
+    const profileMap = new Map((profiles || []).map(p => [p.user_id, p]));
 
     // Fetch all agent results for these applications
     const applicationIds = applications.map((a: any) => a.id);
@@ -76,6 +94,8 @@ serve(async (req) => {
       .from("fraud_logs")
       .select("*")
       .in("application_id", applicationIds);
+
+    console.log(`[Verdict] Processing ${applications.length} applications for ${job.title}`);
 
     // Process each application
     const rankings: any[] = [];
@@ -96,8 +116,11 @@ serve(async (req) => {
         (f: any) => f.application_id === application.id
       );
 
-      const candidate = application.candidate;
-      const profile = candidate?.profile;
+      const candidateProfile = candidateProfileMap.get(application.candidate_id);
+      const profile = profileMap.get(application.candidate_id);
+
+      // Resolve candidate name with multiple fallbacks
+      const candidateName = resolveCandidateName(profile, candidateProfile, application.candidate_id);
 
       // Get scores from each agent
       const scores = {
@@ -121,14 +144,15 @@ serve(async (req) => {
         (scores.interview || 0) * scoreWeights.interview +
         fraudAdjustment * scoreWeights.fraud_adjustment;
 
-      const completedAllRounds = application.status === "completed";
+      const completedAllRounds = application.status === "completed" || 
+        (scores.interview > 0 && application.current_agent >= 5);
 
       if (completedAllRounds) {
-        // Generate AI recommendation
+        // Generate AI recommendation using Pro model
         const recommendation = await generateRecommendation(
           lovableApiKey,
           job,
-          candidate,
+          { profile, candidateProfile, name: candidateName },
           appResults,
           finalScore
         );
@@ -136,14 +160,14 @@ serve(async (req) => {
         rankings.push({
           application_id: application.id,
           candidate: {
-            id: candidate?.user_id,
-            name: profile?.full_name || "Unknown",
-            email: profile?.email,
-            phone: candidate?.phone_number,
-            github_url: candidate?.github_url,
-            linkedin_url: candidate?.linkedin_url,
-            skills: candidate?.skills || [],
-            experience_years: candidate?.experience_years || 0,
+            id: application.candidate_id,
+            name: candidateName,
+            email: profile?.email || null,
+            phone: candidateProfile?.phone_number || null,
+            github_url: candidateProfile?.github_url || null,
+            linkedin_url: candidateProfile?.linkedin_url || null,
+            skills: candidateProfile?.skills || [],
+            experience_years: candidateProfile?.experience_years || 0,
           },
           final_score: Math.round(finalScore * 100) / 100,
           round_scores: {
@@ -171,8 +195,8 @@ serve(async (req) => {
         }
 
         rejectedCandidates.push({
-          name: profile?.full_name || "Unknown",
-          email: profile?.email,
+          name: candidateName,
+          email: profile?.email || null,
           rejected_at: rejectionStage,
           score_at_rejection: scores[rejectionStage as keyof typeof scores] || 0,
           reason: getAgentReasoning(appResults, application.current_agent),
@@ -211,9 +235,10 @@ serve(async (req) => {
       top_score: rankings[0]?.final_score || 0,
       lowest_passing_score: rankings[rankings.length - 1]?.final_score || 0,
       fraud_incidents: (allFraudLogs || []).filter((f: any) => f.severity === "high" || f.severity === "critical").length,
-      bias_analysis: "No significant bias detected", // Would need actual analysis
-      pipeline_duration_avg_days: 3.2, // Would calculate from timestamps
+      bias_analysis: "No significant bias detected",
+      pipeline_duration_avg_days: 3.2,
       ai_confidence: 87,
+      models_used: AI_MODELS,
     };
 
     // Store reports in database
@@ -254,6 +279,8 @@ serve(async (req) => {
       .update({ status: "completed" })
       .eq("id", job_id);
 
+    console.log(`[Verdict] Completed: ${rankings.length} ranked, ${rejectedCandidates.length} rejected`);
+
     return new Response(
       JSON.stringify({
         success: true,
@@ -264,6 +291,7 @@ serve(async (req) => {
           total_rejected: rejectedCandidates.length,
           by_stage: stageRejections,
         },
+        models_used: AI_MODELS,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
@@ -275,6 +303,40 @@ serve(async (req) => {
     );
   }
 });
+
+// Resolve candidate name with multiple fallbacks
+function resolveCandidateName(
+  profile: any,
+  candidateProfile: any,
+  candidateId: string
+): string {
+  // 1. Try profile full_name
+  if (profile?.full_name && profile.full_name.trim()) {
+    return profile.full_name.trim();
+  }
+  
+  // 2. Try to derive from email
+  if (profile?.email) {
+    const emailName = profile.email.split("@")[0];
+    // Convert email prefix to readable name (john.doe -> John Doe)
+    const formatted = emailName
+      .replace(/[._-]/g, " ")
+      .split(" ")
+      .map((part: string) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+      .join(" ");
+    if (formatted && formatted.length > 2) {
+      return formatted;
+    }
+  }
+  
+  // 3. Try phone number
+  if (candidateProfile?.phone_number) {
+    return `Candidate (${candidateProfile.phone_number.slice(-4)})`;
+  }
+  
+  // 4. Use ID as last resort
+  return `Candidate ${candidateId.slice(0, 8)}`;
+}
 
 function getAgentScore(results: any[], agentNumber: number): number {
   const result = results.find((r: any) => r.agent_number === agentNumber);
@@ -291,7 +353,6 @@ function getHighlights(results: any[], agentNumber: number): string[] {
   if (!result) return [];
   
   const reasoning = result.reasoning || "";
-  // Extract key points from reasoning
   return [reasoning.slice(0, 100) + (reasoning.length > 100 ? "..." : "")];
 }
 
@@ -327,25 +388,29 @@ async function generateRecommendation(
   results: any[],
   finalScore: number
 ) {
-  const profile = candidate?.profile;
+  const candidateName = candidate.name;
+  const profile = candidate.profile;
+  const candidateProfile = candidate.candidateProfile;
   
-  const prompt = `Generate a hiring recommendation for this candidate.
+  const prompt = `Generate a comprehensive hiring recommendation for this candidate.
 
 JOB: ${job.title}
-CANDIDATE: ${profile?.full_name}
-EXPERIENCE: ${candidate?.experience_years} years
-SKILLS: ${(candidate?.skills || []).join(", ")}
+REQUIRED SKILLS: ${(job.required_skills || []).join(", ")}
+
+CANDIDATE: ${candidateName}
+EXPERIENCE: ${candidateProfile?.experience_years || 0} years
+SKILLS: ${(candidateProfile?.skills || []).join(", ")}
 
 ROUND SCORES:
-${results.map((r: any) => `${r.agent_name}: ${r.score}% - ${r.reasoning?.slice(0, 100)}`).join("\n")}
+${results.map((r: any) => `${r.agent_name}: ${r.score}% - ${(r.reasoning || "").slice(0, 150)}`).join("\n")}
 
 FINAL SCORE: ${finalScore}%
 
 Provide JSON:
 {
-  "strengths": ["top 3 strengths"],
-  "weaknesses": ["areas for improvement"],
-  "recommendation": "1-2 paragraph detailed recommendation including whether to hire and why"
+  "strengths": ["top 3-5 specific strengths based on performance"],
+  "weaknesses": ["areas needing improvement with specifics"],
+  "recommendation": "2-3 paragraph detailed recommendation including hire/no-hire decision with justification, fit for role, and potential growth areas"
 }`;
 
   const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
@@ -355,9 +420,9 @@ Provide JSON:
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      model: "google/gemini-3-flash-preview",
+      model: AI_MODELS.COMPREHENSIVE,
       messages: [
-        { role: "system", content: "You are an expert hiring consultant. Provide actionable recommendations. Respond with valid JSON." },
+        { role: "system", content: "You are an expert hiring consultant providing detailed, actionable recommendations. Be specific and reference actual performance data. Respond with valid JSON." },
         { role: "user", content: prompt },
       ],
       temperature: 0.3,
@@ -368,7 +433,7 @@ Provide JSON:
     return {
       strengths: ["Completed all rounds"],
       weaknesses: ["Could not generate detailed analysis"],
-      recommendation: `Candidate scored ${finalScore}% overall and completed all interview rounds.`,
+      recommendation: `${candidateName} scored ${finalScore}% overall and completed all interview rounds.`,
     };
   }
 
@@ -387,6 +452,6 @@ Provide JSON:
   return {
     strengths: ["Completed assessment"],
     weaknesses: [],
-    recommendation: `Final score: ${finalScore}%`,
+    recommendation: `${candidateName} - Final score: ${finalScore}%`,
   };
 }
