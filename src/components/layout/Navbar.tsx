@@ -3,8 +3,9 @@ import { motion, useScroll, useTransform, AnimatePresence } from "framer-motion"
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { cn } from "@/lib/utils";
-import { Brain, Menu, X } from "lucide-react";
+import { Menu, X } from "lucide-react";
 import { useState, useEffect } from "react";
+import logo from "@/assets/logo.png";
 const navLinks = [{
   href: "/",
   label: "Home"
@@ -61,8 +62,8 @@ export function Navbar() {
               rotate: 5
             }} whileTap={{
               scale: 0.95
-            }} className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-primary transition-shadow group-hover:shadow-lg group-hover:shadow-primary/30">
-                <Brain className="h-5 w-5 text-primary-foreground" />
+            }} className="flex h-9 w-9 items-center justify-center rounded-lg overflow-hidden transition-shadow group-hover:shadow-lg group-hover:shadow-primary/30">
+                <img src={logo} alt="HireMinds AI" className="h-9 w-9 object-cover" />
               </motion.div>
               <span className="text-lg font-bold">
                 Hire<span className="gradient-text">Minds</span> AI
@@ -198,8 +199,8 @@ export function Footer() {
         <div className="grid gap-8 md:grid-cols-4">
           <div>
             <Link to="/" className="flex items-center gap-2 group">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-primary transition-transform group-hover:scale-105">
-                <Brain className="h-4 w-4 text-primary-foreground" />
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg overflow-hidden transition-transform group-hover:scale-105">
+                <img src={logo} alt="HireMinds AI" className="h-8 w-8 object-cover" />
               </div>
               <span className="font-bold">
                 Hire<span className="gradient-text">Minds</span> AI
