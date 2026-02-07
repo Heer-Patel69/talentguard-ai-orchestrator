@@ -213,7 +213,7 @@ export function AssessmentComplete({
             </div>
           )}
 
-          {/* Next Round Button */}
+          {/* Next Round Button - Show when passed */}
           {passed && nextRound && (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -236,6 +236,7 @@ export function AssessmentComplete({
                 onClick={handleAdvanceToNext}
                 className="w-full bg-primary hover:bg-primary/90"
                 disabled={isAdvancing}
+                size="lg"
               >
                 {isAdvancing ? (
                   <>
@@ -244,11 +245,43 @@ export function AssessmentComplete({
                   </>
                 ) : (
                   <>
-                    Move to Next Assessment
+                    Proceed to Round {nextRound.round_number}
                     <ArrowRight className="ml-2 h-4 w-4" />
                   </>
                 )}
               </Button>
+            </motion.div>
+          )}
+
+          {/* Passed but no more rounds */}
+          {passed && !nextRound && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.5 }}
+              className="mb-6 p-4 rounded-xl bg-success/10 border border-success/30 text-center"
+            >
+              <Trophy className="h-10 w-10 text-success mx-auto mb-2" />
+              <h4 className="font-semibold text-success">All Rounds Complete!</h4>
+              <p className="text-sm text-muted-foreground mt-1">
+                You've completed all assessment rounds. Results will be reviewed soon.
+              </p>
+            </motion.div>
+          )}
+
+          {/* Failed message */}
+          {!passed && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.5 }}
+              className="mb-6 p-4 rounded-xl bg-warning/10 border border-warning/30 text-center"
+            >
+              <h4 className="font-semibold text-warning">Keep Learning!</h4>
+              <p className="text-sm text-muted-foreground mt-1">
+                You scored {results.score}%, but needed {passingScore}% to pass. 
+                Review the topics above and try again for other positions.
+              </p>
             </motion.div>
           )}
 
