@@ -366,36 +366,138 @@ export default function MCQAssessmentPage() {
     saveAnswer();
     setStatus("submitting");
 
-    let correct = 0;
-    let wrong = 0;
-    let skipped = 0;
-    const topicBreakdown: Record<string, { correct: number; total: number }> = {};
+    try {
+      // Build response data with actual answers
+      const responseData = questions.map((q) => {
+        const answer = answers.get(q.id);
+        // Get correct answer from question - handle different formats
+        const questionAny = q as any;
+        const correctAnswers: number[] = questionAny.correctAnswers 
+          || (questionAny.correctAnswer !== undefined ? [questionAny.correctAnswer] : null)
+          || (questionAny.correct_answer !== undefined ? [questionAny.correct_answer] : null)
+          || [1]; // Fallback
+        
+        const selectedOptions = answer?.selectedOptions || [];
+        
+        // Check if any selected option is correct
+        const isCorrect = selectedOptions.length > 0 && 
+          selectedOptions.some(opt => correctAnswers.includes(opt));
+        
+        return {
+          questionId: q.id,
+          question: q.question,
+          selectedOptions,
+          correctAnswers,
+          isCorrect,
+          topic: q.topic,
+          difficulty: q.difficulty,
+          timeTaken: answer?.timeTaken || 0,
+        };
+      });
 
-    questions.forEach((q) => {
-      const answer = answers.get(q.id);
-      if (!topicBreakdown[q.topic]) {
-        topicBreakdown[q.topic] = { correct: 0, total: 0 };
-      }
-      topicBreakdown[q.topic].total++;
+      // Calculate scores
+      let correct = 0;
+      let wrong = 0;
+      let skipped = 0;
+      const topicBreakdown: Record<string, { correct: number; total: number }> = {};
 
-      if (!answer || answer.selectedOptions.length === 0) {
-        skipped++;
-      } else {
-        // For demo, assume second option (index 1) is correct
-        const isCorrect = answer.selectedOptions.includes(1);
-        if (isCorrect) {
+      responseData.forEach((r) => {
+        if (!topicBreakdown[r.topic]) {
+          topicBreakdown[r.topic] = { correct: 0, total: 0 };
+        }
+        topicBreakdown[r.topic].total++;
+
+        if (r.selectedOptions.length === 0) {
+          skipped++;
+        } else if (r.isCorrect) {
           correct++;
-          topicBreakdown[q.topic].correct++;
+          topicBreakdown[r.topic].correct++;
         } else {
           wrong++;
         }
+      });
+
+      const score = Math.round((correct / questions.length) * 100);
+      const passingScore = jobConfig?.job?.round_config?.mcq?.passing_score || 60;
+      const passed = score >= passingScore;
+
+      // Save results to database
+      if (applicationId) {
+        // Update application with score and status
+        const { error: updateError } = await supabase
+          .from("applications")
+          .update({
+            overall_score: score,
+            current_round: passed ? (currentRoundNumber + 1) : currentRoundNumber,
+            status: passed ? "interviewing" : "rejected",
+          })
+          .eq("id", applicationId);
+
+        if (updateError) {
+          console.error("Error updating application:", updateError);
+        }
+
+        // Store agent result for tracking
+        try {
+          await supabase.from("agent_results").insert({
+            application_id: applicationId,
+            agent_number: 2,
+            agent_name: "Quizmaster",
+            score,
+            detailed_scores: Object.fromEntries(
+              Object.entries(topicBreakdown).map(([topic, data]) => [
+                topic,
+                Math.round((data.correct / data.total) * 100),
+              ])
+            ),
+            decision: passed ? "pass" : "reject",
+            reasoning: passed
+              ? `Candidate scored ${score}% (passing: ${passingScore}%). Strong performance.`
+              : `Score ${score}% below passing threshold of ${passingScore}%.`,
+            raw_data: {
+              total_questions: questions.length,
+              correct,
+              wrong,
+              skipped,
+              topic_breakdown: topicBreakdown,
+              tab_switches: antiCheat.tabSwitchCount,
+              trust_score: antiCheat.trustScore,
+            },
+          });
+        } catch (e) {
+          console.error("Error saving agent result:", e);
+        }
+
+        // Record fraud flags if present
+        if (antiCheat.tabSwitchCount > 2) {
+          try {
+            await supabase.from("fraud_logs").insert({
+              application_id: applicationId,
+              agent_number: 2,
+              flag_type: "tab_switches",
+              severity: antiCheat.tabSwitchCount > 5 ? "high" : "medium",
+              evidence: { 
+                tab_switches: antiCheat.tabSwitchCount,
+                trust_score: antiCheat.trustScore,
+              },
+            });
+          } catch (e) {
+            console.error("Error saving fraud log:", e);
+          }
+        }
       }
-    });
 
-    const score = Math.round((correct / questions.length) * 100);
-
-    setResults({ score, correct, wrong, skipped, topicBreakdown });
-    setStatus("completed");
+      setResults({ score, correct, wrong, skipped, topicBreakdown });
+      setStatus("completed");
+    } catch (error) {
+      console.error("Error submitting assessment:", error);
+      toast({
+        title: "Error",
+        description: "Failed to submit assessment. Please try again.",
+        variant: "destructive",
+      });
+      setStatus("in-progress");
+    }
   };
 
   const formatTime = (seconds: number) => {
