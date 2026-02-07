@@ -44,6 +44,9 @@ import {
   ArrowRight,
   Loader2,
   Video,
+  ChevronUp,
+  ChevronDown,
+  X,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { GlassCard } from "@/components/ui/glass-card";
@@ -54,6 +57,7 @@ import { AntiCheatOverlay, AntiCheatStatusBadge } from "@/components/proctoring"
 import { useJobRoundConfig, useNextRound } from "@/hooks/useJobRoundConfig";
 import { useInterviewRecording } from "@/hooks/useInterviewRecording";
 import { useProctoringLogger } from "@/hooks/useProctoringLogger";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 type InterviewStatus = "preparing" | "in-progress" | "completing" | "completed";
 type InterviewType = "technical" | "system-design" | "behavioral";
@@ -69,6 +73,7 @@ interface ProctoringEvent {
 }
 
 export default function AIInterviewRoomPage() {
+  const isMobile = useIsMobile();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { toast } = useToast();
@@ -88,6 +93,10 @@ export default function AIInterviewRoomPage() {
   const [workspaceMode, setWorkspaceMode] = useState<WorkspaceMode>(
     interviewType === "system-design" ? "whiteboard" : interviewType === "technical" ? "code" : "conversation"
   );
+  
+  // Mobile state for panel visibility - MUST be declared here with other hooks
+  const [mobilePanel, setMobilePanel] = useState<"video" | "code" | null>(null);
+  const [showMobileVideo, setShowMobileVideo] = useState(false);
   // Anti-cheat system
   const antiCheat = useAntiCheat({
     enforceFullscreen: true,
@@ -875,7 +884,211 @@ export default function AIInterviewRoomPage() {
     );
   }
 
-  // Main interview room
+
+  // Main interview room - MOBILE OPTIMIZED
+  if (isMobile) {
+    return (
+      <div className="h-[100dvh] bg-background flex flex-col overflow-hidden">
+        {/* Mobile Header - Compact */}
+        <header className="flex items-center justify-between px-3 py-2 border-b border-border bg-card shrink-0 safe-area-inset-top">
+          <div className="flex items-center gap-2">
+            <div className="h-7 w-7 rounded-lg bg-primary/10 flex items-center justify-center">
+              <Brain className="h-3.5 w-3.5 text-primary" />
+            </div>
+            <Badge
+              variant={remainingTime < 300 ? "destructive" : "secondary"}
+              className="gap-1 tabular-nums text-xs"
+            >
+              <Clock className="h-3 w-3" />
+              {Math.floor(remainingTime / 60)}:{(remainingTime % 60).toString().padStart(2, "0")}
+            </Badge>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Badge variant="outline" className="gap-1 text-xs">
+              <MessageSquare className="h-3 w-3" />
+              Q{questionCount}
+            </Badge>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs px-2"
+              onClick={() => setShowExitDialog(true)}
+            >
+              <LogOut className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        </header>
+
+        {/* Mobile Main Content */}
+        <div className="flex-1 flex flex-col min-h-0 relative">
+          {/* Floating Video Preview */}
+          <AnimatePresence>
+            {showMobileVideo && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.8, y: -20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.8, y: -20 }}
+                className="absolute top-2 right-2 z-20 w-32 aspect-video rounded-lg overflow-hidden shadow-lg border border-border bg-black"
+              >
+                <VideoPanel
+                  isRecording={status === "in-progress"}
+                  elapsedTime={elapsedTime}
+                  remainingTime={remainingTime}
+                  aiSpeaking={aiSpeaking}
+                  className="h-full"
+                />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="absolute top-1 right-1 h-5 w-5 bg-black/50 hover:bg-black/70"
+                  onClick={() => setShowMobileVideo(false)}
+                >
+                  <X className="h-3 w-3 text-white" />
+                </Button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Voice Agent - Full width on mobile */}
+          <div className="flex-1 min-h-0">
+            {voiceMode === "realtime" ? (
+              <RealtimeVoiceAgent
+                jobField={jobContext?.jobField}
+                toughnessLevel={
+                  jobContext?.toughnessLevel 
+                    ? ["easy", "easy-medium", "medium", "medium-hard", "hard"][jobContext.toughnessLevel - 1] || "medium"
+                    : "medium"
+                }
+                jobTitle={jobContext?.jobTitle}
+                candidateName={jobContext?.candidateName}
+                onSpeakingChange={setAiSpeaking}
+                autoConnect={true}
+                className="h-full"
+              />
+            ) : (
+              <ContinuousVoicePanel
+                messages={messages}
+                isLoading={isLoading}
+                onSendMessage={handleSendMessage}
+                aiSpeaking={aiSpeaking}
+                autoListen={true}
+                className="h-full"
+              />
+            )}
+          </div>
+
+          {/* Mobile Bottom Bar - Quick Actions */}
+          <div className="shrink-0 border-t border-border bg-card/80 backdrop-blur-xl p-2 safe-area-inset-bottom">
+            <div className="flex items-center justify-around gap-2">
+              {/* Video Toggle */}
+              <Button
+                variant={showMobileVideo ? "secondary" : "ghost"}
+                size="sm"
+                className="flex-1 h-10 gap-1.5"
+                onClick={() => setShowMobileVideo(!showMobileVideo)}
+              >
+                <Video className={cn("h-4 w-4", interviewRecording.isRecording && "text-danger")} />
+                <span className="text-xs">Camera</span>
+              </Button>
+
+              {/* Code Editor */}
+              {interviewType === "technical" && (
+                <Button
+                  variant={mobilePanel === "code" ? "secondary" : "ghost"}
+                  size="sm"
+                  className="flex-1 h-10 gap-1.5"
+                  onClick={() => setMobilePanel(mobilePanel === "code" ? null : "code")}
+                >
+                  <Code2 className="h-4 w-4" />
+                  <span className="text-xs">Code</span>
+                </Button>
+              )}
+
+              {/* Whiteboard */}
+              {interviewType === "system-design" && (
+                <Button
+                  variant={mobilePanel === "code" ? "secondary" : "ghost"}
+                  size="sm"
+                  className="flex-1 h-10 gap-1.5"
+                  onClick={() => setMobilePanel(mobilePanel === "code" ? null : "code")}
+                >
+                  <Layout className="h-4 w-4" />
+                  <span className="text-xs">Draw</span>
+                </Button>
+              )}
+
+              {/* Recording Status */}
+              {interviewRecording.isRecording && (
+                <Badge variant="outline" className="gap-1 text-danger border-danger/30 px-2">
+                  <div className="h-2 w-2 rounded-full bg-danger animate-pulse" />
+                  <span className="text-xs">REC</span>
+                </Badge>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Mobile Code/Whiteboard Drawer */}
+        <AnimatePresence>
+          {mobilePanel === "code" && (
+            <motion.div
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "100%" }}
+              transition={{ type: "spring", damping: 25, stiffness: 300 }}
+              className="absolute inset-0 z-30 bg-background flex flex-col"
+            >
+              <div className="flex items-center justify-between px-3 py-2 border-b border-border">
+                <h3 className="font-medium text-sm">
+                  {interviewType === "technical" ? "Code Editor" : "Whiteboard"}
+                </h3>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setMobilePanel(null)}
+                >
+                  <ChevronDown className="h-4 w-4 mr-1" />
+                  Minimize
+                </Button>
+              </div>
+              <div className="flex-1 min-h-0">
+                {interviewType === "technical" ? (
+                  <CodeEditorPanel
+                    problemStatement="Write a function to solve the problem described by the AI interviewer."
+                    onAnalysisComplete={handleCodeAnalysis}
+                    className="h-full"
+                  />
+                ) : (
+                  <WhiteboardPanel className="h-full" />
+                )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Exit Confirmation Dialog */}
+        <AlertDialog open={showExitDialog} onOpenChange={setShowExitDialog}>
+          <AlertDialogContent className="max-w-[90vw]">
+            <AlertDialogHeader>
+              <AlertDialogTitle>End Interview?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Your progress will be saved and submitted for review.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter className="flex-col gap-2 sm:flex-row">
+              <AlertDialogCancel className="w-full sm:w-auto">Continue</AlertDialogCancel>
+              <AlertDialogAction onClick={handleEndInterview} className="w-full sm:w-auto">
+                End Interview
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </div>
+    );
+  }
+
+  // Main interview room - DESKTOP
   return (
     <div className="h-screen bg-background flex flex-col overflow-hidden">
       {/* Header */}

@@ -135,6 +135,7 @@ export default function CandidatesPage() {
       const candidateProfiles = candidateProfilesResult.data;
       const jobRounds = jobRoundsResult.data;
 
+      // Build maps for quick lookup
       const profileMap = new Map((profiles || []).map(p => [p.user_id, p]));
       const candidateProfileMap = new Map((candidateProfiles || []).map(p => [p.user_id, p]));
       
@@ -160,18 +161,36 @@ export default function CandidatesPage() {
           ? Math.max(0, testsCompleted - 1) 
           : testsCompleted;
 
-        // Determine name - prioritize profile data, then try email extraction
-        let candidateName = profile?.full_name;
-        if (!candidateName && profile?.email) {
-          // Extract name from email if no full_name
-          const emailName = profile.email.split('@')[0];
-          candidateName = emailName.charAt(0).toUpperCase() + emailName.slice(1).replace(/[._]/g, ' ');
+        // Determine name - prioritize profile data, then candidate profile, then email extraction
+        let candidateName = profile?.full_name?.trim();
+        
+        // If no name in profiles, check if we can get it from candidate_profiles
+        if (!candidateName && candProfile) {
+          // Some systems store name in phone_number field comments or other places
+          // For now, try email extraction as fallback
         }
-        const hasProfile = !!profile?.full_name;
+        
+        if (!candidateName && profile?.email) {
+          // Extract name from email if no full_name - make it more readable
+          const emailName = profile.email.split('@')[0];
+          // Handle common email patterns: john.doe, john_doe, johndoe
+          candidateName = emailName
+            .replace(/[._-]/g, ' ')
+            .split(' ')
+            .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+            .join(' ');
+        }
+        
+        // Final check - if still no name, use a more descriptive placeholder
+        const displayName = candidateName && candidateName.length > 0 
+          ? candidateName 
+          : `Applicant #${app.id.slice(0, 6).toUpperCase()}`;
+        
+        const hasProfile = !!(profile?.full_name?.trim());
 
         return {
           id: app.id,
-          name: candidateName || "Unnamed Applicant",
+          name: displayName,
           email: profile?.email || "No email provided",
           phone: candProfile?.phone_number || "",
           job: (app.jobs as any)?.title || "Unknown",
