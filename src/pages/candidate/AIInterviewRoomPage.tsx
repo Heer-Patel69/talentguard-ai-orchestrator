@@ -102,15 +102,42 @@ export default function AIInterviewRoomPage() {
     toughnessLevel: number;
     jobField: string;
     jobTitle: string;
+    candidateName?: string;
   } | null>(null);
 
-  // Fetch job context on mount
+  // Fetch job context and candidate info on mount
   useEffect(() => {
     const fetchJobContext = async () => {
       const applicationId = searchParams.get("application");
-      if (!applicationId) return;
-
+      
       try {
+        // Fetch current user's profile for candidate name
+        const { data: { user } } = await supabase.auth.getUser();
+        let candidateName: string | undefined;
+        
+        if (user) {
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("full_name")
+            .eq("user_id", user.id)
+            .maybeSingle();
+          
+          if (profile?.full_name) {
+            candidateName = profile.full_name;
+          }
+        }
+        
+        if (!applicationId) {
+          // Even without application, set candidate name
+          setJobContext({
+            toughnessLevel: 3,
+            jobField: "General",
+            jobTitle: "Unknown Position",
+            candidateName,
+          });
+          return;
+        }
+
         const { data: application } = await supabase
           .from("applications")
           .select(`
@@ -127,6 +154,7 @@ export default function AIInterviewRoomPage() {
             toughnessLevel: job.toughness_level || 3,
             jobField: job.field || "General",
             jobTitle: job.title || "Unknown Position",
+            candidateName,
           });
 
           // Fetch round-specific duration
@@ -142,6 +170,14 @@ export default function AIInterviewRoomPage() {
             setInterviewDuration(durationSeconds);
             setRemainingTime(durationSeconds);
           }
+        } else {
+          // No application found, still set candidate name
+          setJobContext({
+            toughnessLevel: 3,
+            jobField: "General",
+            jobTitle: "Unknown Position",
+            candidateName,
+          });
         }
       } catch (error) {
         console.error("Error fetching job context:", error);
@@ -667,6 +703,7 @@ export default function AIInterviewRoomPage() {
                   : "medium"
               }
               jobTitle={jobContext?.jobTitle}
+              candidateName={jobContext?.candidateName}
               onSpeakingChange={setAiSpeaking}
               autoConnect={true}
               className="h-full"

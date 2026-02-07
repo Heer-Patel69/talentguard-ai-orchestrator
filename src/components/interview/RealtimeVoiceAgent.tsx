@@ -31,6 +31,7 @@ interface RealtimeVoiceAgentProps {
   jobField?: string;
   toughnessLevel?: string;
   jobTitle?: string;
+  candidateName?: string;
   onMessage?: (message: VoiceMessage) => void;
   onConnectionChange?: (connected: boolean) => void;
   onSpeakingChange?: (isSpeaking: boolean) => void;
@@ -42,6 +43,7 @@ export function RealtimeVoiceAgent({
   jobField = "Technical",
   toughnessLevel = "medium",
   jobTitle = "Software Engineer",
+  candidateName,
   onMessage,
   onConnectionChange,
   onSpeakingChange,
@@ -53,18 +55,21 @@ export function RealtimeVoiceAgent({
   const [messages, setMessages] = useState<VoiceMessage[]>([]);
   const [volume, setVolume] = useState(0.8);
   const [connectionState, setConnectionState] = useState<"idle" | "connecting" | "connected" | "disconnecting" | "error">("idle");
+  const [connectionError, setConnectionError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Connection stability tracking
+  // Connection stability tracking - increased for public agent mode
   const reconnectAttemptRef = useRef(0);
-  const maxReconnectAttempts = 3;
+  const maxReconnectAttempts = 5; // Increased from 3
   const isIntentionalDisconnectRef = useRef(false);
-  const connectionLockRef = useRef(false); // Prevent concurrent connection attempts
+  const connectionLockRef = useRef(false);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const hasAutoConnectedRef = useRef(false); // Prevent multiple auto-connects
-  const sessionActiveRef = useRef(false); // Track if session is truly active
-  const lastConnectionAttemptRef = useRef<number>(0); // Debounce connection attempts
-  const cleanupInProgressRef = useRef(false); // Prevent cleanup race conditions
+  const hasAutoConnectedRef = useRef(false);
+  const sessionActiveRef = useRef(false);
+  const lastConnectionAttemptRef = useRef<number>(0);
+  const cleanupInProgressRef = useRef(false);
+  const keepAliveIntervalRef = useRef<NodeJS.Timeout | null>(null); // Keep-alive for stable connection
+  const connectionStartTimeRef = useRef<number>(0); // Track connection duration
 
   // Store callbacks in refs to avoid dependency issues
   const onMessageRef = useRef(onMessage);
@@ -77,12 +82,16 @@ export function RealtimeVoiceAgent({
     onSpeakingChangeRef.current = onSpeakingChange;
   }, [onMessage, onConnectionChange, onSpeakingChange]);
 
-  // Cleanup function for reconnect timeouts
+  // Cleanup function for reconnect timeouts and keep-alive
   useEffect(() => {
     return () => {
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
         reconnectTimeoutRef.current = null;
+      }
+      if (keepAliveIntervalRef.current) {
+        clearInterval(keepAliveIntervalRef.current);
+        keepAliveIntervalRef.current = null;
       }
       // Mark session as inactive on unmount
       sessionActiveRef.current = false;
@@ -97,21 +106,50 @@ export function RealtimeVoiceAgent({
       connectionLockRef.current = false;
       sessionActiveRef.current = true;
       cleanupInProgressRef.current = false;
+      connectionStartTimeRef.current = Date.now();
+      setConnectionError(null);
       setIsConnecting(false);
+      setConnectionState("connected");
       onConnectionChangeRef.current?.(true);
+      
+      // Start keep-alive ping to maintain connection stability
+      if (keepAliveIntervalRef.current) {
+        clearInterval(keepAliveIntervalRef.current);
+      }
+      keepAliveIntervalRef.current = setInterval(() => {
+        if (sessionActiveRef.current && conversation.status === "connected") {
+          // Send activity ping to keep connection alive
+          console.log("🔄 Keep-alive ping - connection active for", Math.round((Date.now() - connectionStartTimeRef.current) / 1000), "seconds");
+        }
+      }, 15000); // Every 15 seconds
+      
       toast({
         title: "Connected",
-        description: "Voice interview started. Speak naturally - the AI is listening!",
+        description: candidateName 
+          ? `Welcome ${candidateName}! Speak naturally - the AI is listening.`
+          : "Voice interview started. Speak naturally - the AI is listening!",
       });
     },
     onDisconnect: () => {
       console.log("Disconnected from ElevenLabs agent");
       const wasActive = sessionActiveRef.current;
+      const connectionDuration = connectionStartTimeRef.current > 0 
+        ? Math.round((Date.now() - connectionStartTimeRef.current) / 1000) 
+        : 0;
+      console.log(`Session was active for ${connectionDuration} seconds`);
+      
       sessionActiveRef.current = false;
       connectionLockRef.current = false;
       cleanupInProgressRef.current = false;
       setIsConnecting(false);
+      setConnectionState("idle");
       onConnectionChangeRef.current?.(false);
+      
+      // Clear keep-alive interval
+      if (keepAliveIntervalRef.current) {
+        clearInterval(keepAliveIntervalRef.current);
+        keepAliveIntervalRef.current = null;
+      }
       
       // Only attempt reconnect if:
       // 1. It wasn't intentional
@@ -277,9 +315,9 @@ export function RealtimeVoiceAgent({
 
   // Internal connection function without state conflicts
   const startConversationInternal = useCallback(async () => {
-    // Debounce rapid connection attempts (min 500ms between attempts)
+    // Debounce rapid connection attempts (min 800ms between attempts for public mode stability)
     const now = Date.now();
-    if (now - lastConnectionAttemptRef.current < 500) {
+    if (now - lastConnectionAttemptRef.current < 800) {
       console.log("⏳ Connection attempt too soon, debouncing...");
       return;
     }
@@ -294,7 +332,7 @@ export function RealtimeVoiceAgent({
     // Check if cleanup is in progress
     if (cleanupInProgressRef.current) {
       console.log("⏳ Cleanup in progress, waiting...");
-      await new Promise(resolve => setTimeout(resolve, 200));
+      await new Promise(resolve => setTimeout(resolve, 300));
       if (cleanupInProgressRef.current) {
         console.log("⏳ Cleanup still in progress, aborting connection");
         return;
@@ -314,6 +352,8 @@ export function RealtimeVoiceAgent({
     connectionLockRef.current = true;
     isIntentionalDisconnectRef.current = false;
     setIsConnecting(true);
+    setConnectionState("connecting");
+    setConnectionError(null);
     
     try {
       // Verify microphone permission
@@ -329,6 +369,7 @@ export function RealtimeVoiceAgent({
         console.log("✅ Microphone permission verified");
       } catch (micError) {
         console.error("❌ Microphone permission denied:", micError);
+        setConnectionError("Microphone access required");
         toast({
           title: "Microphone Access Required",
           description: "Please allow microphone access to start the voice interview.",
@@ -336,6 +377,7 @@ export function RealtimeVoiceAgent({
         });
         connectionLockRef.current = false;
         setIsConnecting(false);
+        setConnectionState("error");
         return;
       }
 
@@ -343,7 +385,7 @@ export function RealtimeVoiceAgent({
       console.log("🔄 Fetching connection credentials...");
       const { data, error } = await supabase.functions.invoke(
         "elevenlabs-conversation-token",
-        { body: { jobField, toughnessLevel, jobTitle } }
+        { body: { jobField, toughnessLevel, jobTitle, candidateName } }
       );
 
       if (error) {
@@ -366,24 +408,36 @@ export function RealtimeVoiceAgent({
         return;
       }
 
+      // Build dynamic overrides for personalization
+      const dynamicOverrides: any = {};
+      if (candidateName) {
+        dynamicOverrides.agent = {
+          firstMessage: `Hello ${candidateName}! I'm your AI interviewer for today's ${jobTitle || 'position'} interview. Before we begin, I'd like to remind you that this session will evaluate your ${jobField || 'technical'} skills. Feel free to think aloud as you work through problems. Are you ready to start?`,
+        };
+      }
+
       // Try different connection methods based on what the server returned
       if (data?.signedUrl) {
         console.log("🔗 Connecting with signed URL (WebSocket)...");
         await conversation.startSession({
           signedUrl: data.signedUrl,
+          ...(Object.keys(dynamicOverrides).length > 0 && { overrides: dynamicOverrides }),
         });
       } else if (data?.token) {
         console.log("🔗 Connecting with conversation token (WebRTC)...");
         await conversation.startSession({
           conversationToken: data.token,
+          ...(Object.keys(dynamicOverrides).length > 0 && { overrides: dynamicOverrides }),
         });
       } else if (data?.agentId) {
         console.log("🔗 Connecting to public agent:", data.agentId);
         if (data?.message) {
           console.warn("⚠️", data.message);
         }
+        // For public agent mode, we pass overrides if available
         await conversation.startSession({
           agentId: data.agentId as string,
+          ...(Object.keys(dynamicOverrides).length > 0 && { overrides: dynamicOverrides }),
         } as any);
       } else {
         throw new Error("No valid connection method available. Please check your ElevenLabs configuration.");
@@ -395,12 +449,21 @@ export function RealtimeVoiceAgent({
       connectionLockRef.current = false;
       sessionActiveRef.current = false;
       setIsConnecting(false);
+      setConnectionState("error");
       
       const errorMessage = error instanceof Error ? error.message : "Could not start voice interview";
+      setConnectionError(errorMessage);
       
-      // Don't show toast for WebSocket state errors
+      // Don't show toast for WebSocket state errors - will auto-retry
       if (errorMessage.includes("CLOSING") || errorMessage.includes("CLOSED")) {
         console.log("⚠️ WebSocket state error during connection - will retry");
+        // Schedule a retry after a brief delay
+        setTimeout(() => {
+          if (!isIntentionalDisconnectRef.current && reconnectAttemptRef.current < maxReconnectAttempts) {
+            reconnectAttemptRef.current++;
+            startConversationInternal();
+          }
+        }, 1000);
         return;
       }
       
@@ -418,7 +481,7 @@ export function RealtimeVoiceAgent({
         });
       }
     }
-  }, [jobField, toughnessLevel, jobTitle, conversation, toast]);
+  }, [jobField, toughnessLevel, jobTitle, candidateName, conversation, toast]);
 
   // Public start function
   const startConversation = useCallback(async () => {
@@ -447,15 +510,23 @@ export function RealtimeVoiceAgent({
         reconnectTimeoutRef.current = null;
       }
       
+      // Clear keep-alive interval
+      if (keepAliveIntervalRef.current) {
+        clearInterval(keepAliveIntervalRef.current);
+        keepAliveIntervalRef.current = null;
+      }
+      
       setMessages([]);
+      setConnectionState("disconnecting");
       
       // Only try to end session if connected
       if (conversation.status === "connected") {
         // Wait a brief moment to ensure any pending operations complete
-        await new Promise(resolve => setTimeout(resolve, 50));
+        await new Promise(resolve => setTimeout(resolve, 100));
         await conversation.endSession();
       }
       
+      setConnectionState("idle");
       toast({
         title: "Interview Ended",
         description: "The voice interview has been disconnected.",
@@ -464,6 +535,7 @@ export function RealtimeVoiceAgent({
       console.error("Error ending conversation:", error);
       // Still mark as ended even if error
       setMessages([]);
+      setConnectionState("idle");
       toast({
         title: "Interview Ended",
         description: "The voice interview has been disconnected.",
