@@ -1,6 +1,6 @@
+import { forwardRef } from "react";
 import { motion, HTMLMotionProps } from "framer-motion";
 import { cn } from "@/lib/utils";
-import { hoverPresets } from "@/lib/animation-presets";
 
 interface GlassCardProps {
   children: React.ReactNode;
@@ -13,63 +13,75 @@ interface GlassCardProps {
   delay?: number;
 }
 
-export function GlassCard({
-  children,
-  className,
-  elevated = false,
-  hover = false,
-  glow,
-  onClick,
-  animateOnScroll = false,
-  delay = 0,
-}: GlassCardProps) {
-  const glowClass = glow
-    ? {
-        primary: "glow-primary",
-        success: "glow-success",
-        danger: "glow-danger",
-      }[glow]
-    : "";
-
-  const hoverProps = hover ? {
-    whileHover: { 
-      y: -4, 
-      scale: 1.02,
-      boxShadow: "var(--shadow-elevated)",
-      borderColor: "hsla(226, 100%, 64%, 0.3)",
-      transition: { duration: 0.2, ease: [0.34, 1.56, 0.64, 1] as const }
+export const GlassCard = forwardRef<HTMLDivElement, GlassCardProps>(
+  function GlassCard(
+    {
+      children,
+      className,
+      elevated = false,
+      hover = false,
+      glow,
+      onClick,
+      animateOnScroll = false,
+      delay = 0,
     },
-    whileTap: { scale: 0.98 },
-  } : {};
+    ref
+  ) {
+    const glowClass = glow
+      ? {
+          primary: "glow-primary",
+          success: "glow-success",
+          danger: "glow-danger",
+        }[glow]
+      : "";
 
-  const animationProps = animateOnScroll ? {
-    initial: { opacity: 0, y: 20, filter: "blur(4px)" },
-    whileInView: { opacity: 1, y: 0, filter: "blur(0px)" },
-    viewport: { once: true, margin: "-50px" },
-    transition: { duration: 0.5, delay, ease: [0.34, 1.56, 0.64, 1] as const },
-  } : {
-    initial: { opacity: 0, y: 10 },
-    animate: { opacity: 1, y: 0 },
-    transition: { duration: 0.3, delay },
-  };
+    const hoverProps = hover
+      ? {
+          whileHover: {
+            y: -4,
+            scale: 1.02,
+            transition: { duration: 0.2, ease: [0.34, 1.56, 0.64, 1] as const },
+          },
+          whileTap: { scale: 0.98 },
+        }
+      : {};
 
-  return (
-    <motion.div
-      {...animationProps}
-      {...hoverProps}
-      onClick={onClick}
-      className={cn(
-        elevated ? "glass-card-elevated" : "glass-card",
-        "rounded-xl p-6 transition-colors",
-        onClick && "cursor-pointer",
-        glowClass,
-        className
-      )}
-    >
-      {children}
-    </motion.div>
-  );
-}
+    const animationProps = animateOnScroll
+      ? {
+          initial: { opacity: 0, y: 20 },
+          whileInView: { opacity: 1, y: 0 },
+          viewport: { once: true, margin: "-50px" },
+          transition: {
+            duration: 0.5,
+            delay,
+            ease: [0.34, 1.56, 0.64, 1] as const,
+          },
+        }
+      : {
+          initial: { opacity: 0, y: 10 },
+          animate: { opacity: 1, y: 0 },
+          transition: { duration: 0.3, delay },
+        };
+
+    return (
+      <motion.div
+        ref={ref}
+        {...animationProps}
+        {...hoverProps}
+        onClick={onClick}
+        className={cn(
+          elevated ? "glass-card-elevated" : "glass-card",
+          "rounded-xl p-6 transition-colors",
+          onClick && "cursor-pointer",
+          glowClass,
+          className
+        )}
+      >
+        {children}
+      </motion.div>
+    );
+  }
+);
 
 // Variant with animated gradient border
 interface GradientGlassCardProps extends GlassCardProps {
