@@ -29,6 +29,8 @@ import {
   Brain,
   Loader2,
   BookOpen,
+  Shield,
+  Maximize2,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -36,6 +38,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 import { useJobRoundConfig, useNextRound } from "@/hooks/useJobRoundConfig";
 import { AssessmentComplete } from "@/components/assessment/AssessmentComplete";
+import { useAntiCheat } from "@/hooks/useAntiCheat";
+import { AntiCheatOverlay, AntiCheatStatusBadge } from "@/components/proctoring";
 
 interface MCQQuestion {
   id: string;
@@ -83,9 +87,20 @@ export default function MCQAssessmentPage() {
   const [questionTimeRemaining, setQuestionTimeRemaining] = useState(60);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Anti-cheat state
-  const [tabSwitches, setTabSwitches] = useState(0);
-  const [showTabWarning, setShowTabWarning] = useState(false);
+  // Anti-cheat system
+  const antiCheat = useAntiCheat({
+    enforceFullscreen: true,
+    maxTabSwitches: 3,
+    maxFocusLoss: 5,
+    blockCopyPaste: true,
+    blockRightClick: true,
+    blockDevTools: true,
+    blockScreenshot: true,
+    autoTerminateOnViolation: false,
+    onEvent: (event) => {
+      console.log("Anti-cheat event:", event);
+    },
+  });
 
   // Dialog state
   const [showSubmitDialog, setShowSubmitDialog] = useState(false);
@@ -136,29 +151,23 @@ export default function MCQAssessmentPage() {
     };
   }, [status, currentIndex]);
 
-  // Tab visibility detection
+  // Start anti-cheat when assessment begins
   useEffect(() => {
-    const handleVisibility = () => {
-      if (document.hidden && status === "in-progress") {
-        setTabSwitches((prev) => {
-          const newCount = prev + 1;
-          if (newCount >= 3) {
-            toast({
-              title: "⚠️ Warning",
-              description: "Multiple tab switches detected. This will affect your score.",
-              variant: "destructive",
-            });
-          }
-          return newCount;
-        });
-        setShowTabWarning(true);
-        setTimeout(() => setShowTabWarning(false), 3000);
+    if (status === "in-progress" && !antiCheat.isActive) {
+      antiCheat.startMonitoring();
+    } else if (status !== "in-progress" && antiCheat.isActive) {
+      antiCheat.stopMonitoring();
+    }
+  }, [status]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (antiCheat.isActive) {
+        antiCheat.stopMonitoring();
       }
     };
-
-    document.addEventListener("visibilitychange", handleVisibility);
-    return () => document.removeEventListener("visibilitychange", handleVisibility);
-  }, [status, toast]);
+  }, []);
 
   const loadQuestions = async () => {
     try {
@@ -487,22 +496,12 @@ export default function MCQAssessmentPage() {
   // In-progress view
   return (
     <div className="min-h-screen bg-background">
-      {/* Tab switch warning */}
-      <AnimatePresence>
-        {showTabWarning && (
-          <motion.div
-            initial={{ opacity: 0, y: -50 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -50 }}
-            className="fixed top-4 left-1/2 -translate-x-1/2 z-50"
-          >
-            <div className="px-4 py-2 rounded-lg bg-danger text-danger-foreground flex items-center gap-2">
-              <AlertTriangle className="h-4 w-4" />
-              Tab switch detected! ({tabSwitches})
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* Anti-cheat fullscreen overlay */}
+      <AntiCheatOverlay
+        state={antiCheat}
+        onRequestFullscreen={antiCheat.requestFullscreen}
+        showDetailedStatus={false}
+      />
 
       {/* Header */}
       <header className="sticky top-0 z-40 border-b border-border bg-background/95 backdrop-blur">
@@ -512,10 +511,10 @@ export default function MCQAssessmentPage() {
               Q{currentIndex + 1} of {questions.length}
             </Badge>
             <Badge className={cn(
-              currentQuestion?.difficulty === "easy" && "bg-success",
-              currentQuestion?.difficulty === "medium" && "bg-warning",
-              currentQuestion?.difficulty === "hard" && "bg-orange-500",
-              currentQuestion?.difficulty === "expert" && "bg-danger"
+              currentQuestion?.difficulty === "easy" && "bg-success text-success-foreground",
+              currentQuestion?.difficulty === "medium" && "bg-warning text-warning-foreground",
+              currentQuestion?.difficulty === "hard" && "bg-orange-500 text-white",
+              currentQuestion?.difficulty === "expert" && "bg-danger text-danger-foreground"
             )}>
               {currentQuestion?.difficulty}
             </Badge>
@@ -523,6 +522,11 @@ export default function MCQAssessmentPage() {
           </div>
 
           <div className="flex items-center gap-4">
+            {/* Anti-cheat status badge */}
+            <AntiCheatStatusBadge 
+              trustScore={antiCheat.trustScore} 
+              isActive={antiCheat.isActive} 
+            />
             <Badge
               variant={questionTimeRemaining < 15 ? "destructive" : "secondary"}
               className="tabular-nums"

@@ -9,10 +9,15 @@ import {
   Mail,
   Shield,
   ShieldCheck,
+  ShieldAlert,
   Eye,
   MoreVertical,
   Star,
+  CheckCircle2,
+  AlertTriangle,
+  User,
 } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -34,6 +39,13 @@ interface CandidateCardProps {
   linkedinUrl: string | null;
   onStatusChange?: (id: string, status: string) => void;
   delay?: number;
+  // New props for test tracking
+  testsCompleted?: number;
+  testsPassed?: number;
+  currentRound?: number;
+  totalRounds?: number;
+  hasProfile?: boolean;
+  fraudFlags?: number;
 }
 
 const statusConfig: Record<string, { label: string; color: string }> = {
@@ -59,14 +71,21 @@ export function ModernCandidateCard({
   linkedinUrl,
   onStatusChange,
   delay = 0,
+  testsCompleted = 0,
+  testsPassed = 0,
+  currentRound = 0,
+  totalRounds = 5,
+  hasProfile = true,
+  fraudFlags = 0,
 }: CandidateCardProps) {
   const statusInfo = statusConfig[status] || statusConfig.applied;
   const initials = name
     .split(" ")
     .map((n) => n[0])
+    .filter(Boolean)
     .join("")
     .slice(0, 2)
-    .toUpperCase();
+    .toUpperCase() || "??";
 
   return (
     <motion.div
@@ -143,17 +162,48 @@ export function ModernCandidateCard({
         </div>
 
         {/* Status & Stage */}
-        <div className="mt-4 flex items-center gap-3">
+        <div className="mt-4 flex items-center gap-3 flex-wrap">
           <Badge variant="outline" className={cn("text-xs", statusInfo.color)}>
             {statusInfo.label}
           </Badge>
           <span className="text-xs text-muted-foreground">{stage}</span>
+          {!hasProfile && (
+            <Badge variant="outline" className="text-xs gap-1 text-warning border-warning/30">
+              <User className="h-3 w-3" />
+              Incomplete Profile
+            </Badge>
+          )}
+          {fraudFlags > 0 && (
+            <Badge variant="outline" className="text-xs gap-1 text-danger border-danger/30">
+              <ShieldAlert className="h-3 w-3" />
+              {fraudFlags} Flag{fraudFlags > 1 ? 's' : ''}
+            </Badge>
+          )}
           {score > 0 && (
             <Badge variant="secondary" className="text-xs ml-auto">
               Score: {score}%
             </Badge>
           )}
         </div>
+
+        {/* Test Progress */}
+        {totalRounds > 0 && (
+          <div className="mt-3 space-y-1.5">
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-muted-foreground flex items-center gap-1">
+                <CheckCircle2 className="h-3 w-3" />
+                Assessment Progress
+              </span>
+              <span className="font-medium">
+                {testsPassed}/{totalRounds} passed
+              </span>
+            </div>
+            <Progress 
+              value={(testsPassed / totalRounds) * 100} 
+              className="h-1.5" 
+            />
+          </div>
+        )}
 
         {/* Social Links */}
         <div className="mt-4 flex items-center gap-2 pt-3 border-t border-border/50">

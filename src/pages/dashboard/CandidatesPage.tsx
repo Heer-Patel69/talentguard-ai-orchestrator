@@ -47,11 +47,17 @@ interface Candidate {
   githubUrl: string | null;
   linkedinUrl: string | null;
   profileScore: number;
+  // New fields for test tracking
+  testsCompleted: number;
+  testsPassed: number;
+  currentRound: number;
+  totalRounds: number;
+  hasProfile: boolean;
 }
 
 const getRoundName = (round: number) => {
-  const rounds = ["Screening", "Technical Round", "System Design", "Behavioral", "Final Round", "Completed"];
-  return rounds[Math.min(round - 1, rounds.length - 1)] || "Screening";
+  const rounds = ["Applied", "MCQ Assessment", "Coding Challenge", "System Design", "Behavioral", "Final Review", "Completed"];
+  return rounds[Math.min(round, rounds.length - 1)] || "Applied";
 };
 
 export default function CandidatesPage() {
@@ -109,32 +115,68 @@ export default function CandidatesPage() {
 
       const candidateIds = [...new Set((applications || []).map(a => a.candidate_id))];
       
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("user_id, full_name, email")
-        .in("user_id", candidateIds);
+      // Fetch profiles and candidate profiles in parallel
+      const [profilesResult, candidateProfilesResult, jobRoundsResult] = await Promise.all([
+        supabase
+          .from("profiles")
+          .select("user_id, full_name, email")
+          .in("user_id", candidateIds),
+        supabase
+          .from("candidate_profiles")
+          .select("user_id, phone_number, github_url, linkedin_url, verification_status, profile_score")
+          .in("user_id", candidateIds),
+        supabase
+          .from("job_rounds")
+          .select("job_id, round_number")
+          .in("job_id", jobIds),
+      ]);
 
-      const { data: candidateProfiles } = await supabase
-        .from("candidate_profiles")
-        .select("user_id, phone_number, github_url, linkedin_url, verification_status, profile_score")
-        .in("user_id", candidateIds);
+      const profiles = profilesResult.data;
+      const candidateProfiles = candidateProfilesResult.data;
+      const jobRounds = jobRoundsResult.data;
 
       const profileMap = new Map((profiles || []).map(p => [p.user_id, p]));
       const candidateProfileMap = new Map((candidateProfiles || []).map(p => [p.user_id, p]));
+      
+      // Count total rounds per job
+      const jobRoundCountMap = new Map<string, number>();
+      (jobRounds || []).forEach(jr => {
+        const current = jobRoundCountMap.get(jr.job_id) || 0;
+        jobRoundCountMap.set(jr.job_id, Math.max(current, jr.round_number));
+      });
 
       const formattedCandidates: Candidate[] = (applications || []).map(app => {
         const profile = profileMap.get(app.candidate_id);
         const candProfile = candidateProfileMap.get(app.candidate_id);
         const fraudFlagsCount = Array.isArray(app.fraud_flags) ? app.fraud_flags.length : 0;
+        const totalRounds = jobRoundCountMap.get(app.job_id) || 5;
+        const currentRound = app.current_round || 0;
+        
+        // Calculate tests completed and passed based on current_round
+        // Round 0 = just applied, Round 1 = passed 1 assessment, etc.
+        const testsCompleted = Math.max(0, currentRound);
+        // If still interviewing, passed = completed - 1; if status is shortlisted/hired, passed = completed
+        const testsPassed = app.status === 'rejected' 
+          ? Math.max(0, testsCompleted - 1) 
+          : testsCompleted;
+
+        // Determine name - prioritize profile data, then try email extraction
+        let candidateName = profile?.full_name;
+        if (!candidateName && profile?.email) {
+          // Extract name from email if no full_name
+          const emailName = profile.email.split('@')[0];
+          candidateName = emailName.charAt(0).toUpperCase() + emailName.slice(1).replace(/[._]/g, ' ');
+        }
+        const hasProfile = !!profile?.full_name;
 
         return {
           id: app.id,
-          name: profile?.full_name || "Unknown Candidate",
-          email: profile?.email || "",
+          name: candidateName || "Unnamed Applicant",
+          email: profile?.email || "No email provided",
           phone: candProfile?.phone_number || "",
           job: (app.jobs as any)?.title || "Unknown",
           jobId: app.job_id,
-          stage: getRoundName(app.current_round || 1),
+          stage: getRoundName(currentRound),
           status: app.status || "applied",
           score: app.overall_score || 0,
           aiConfidence: app.ai_confidence || 0,
@@ -144,6 +186,11 @@ export default function CandidatesPage() {
           githubUrl: candProfile?.github_url || null,
           linkedinUrl: candProfile?.linkedin_url || null,
           profileScore: candProfile?.profile_score || 0,
+          testsCompleted,
+          testsPassed,
+          currentRound,
+          totalRounds,
+          hasProfile,
         };
       });
 
@@ -377,6 +424,12 @@ export default function CandidatesPage() {
               linkedinUrl={candidate.linkedinUrl}
               onStatusChange={updateApplicationStatus}
               delay={index * 0.03}
+              testsCompleted={candidate.testsCompleted}
+              testsPassed={candidate.testsPassed}
+              currentRound={candidate.currentRound}
+              totalRounds={candidate.totalRounds}
+              hasProfile={candidate.hasProfile}
+              fraudFlags={candidate.fraudFlags}
             />
           ))}
         </div>
