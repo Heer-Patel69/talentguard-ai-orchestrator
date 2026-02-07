@@ -43,6 +43,7 @@ import {
   Shield,
   ArrowRight,
   Loader2,
+  Video,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { GlassCard } from "@/components/ui/glass-card";
@@ -51,6 +52,8 @@ import { cn } from "@/lib/utils";
 import { useAntiCheat } from "@/hooks/useAntiCheat";
 import { AntiCheatOverlay, AntiCheatStatusBadge } from "@/components/proctoring";
 import { useJobRoundConfig, useNextRound } from "@/hooks/useJobRoundConfig";
+import { useInterviewRecording } from "@/hooks/useInterviewRecording";
+import { useProctoringLogger } from "@/hooks/useProctoringLogger";
 
 type InterviewStatus = "preparing" | "in-progress" | "completing" | "completed";
 type InterviewType = "technical" | "system-design" | "behavioral";
@@ -61,7 +64,7 @@ const DEFAULT_INTERVIEW_DURATION = 45 * 60; // 45 minutes in seconds
 interface ProctoringEvent {
   type: string;
   timestamp: Date;
-  severity: "low" | "medium" | "high";
+  severity: "low" | "medium" | "high" | "critical";
   description: string;
 }
 
@@ -143,6 +146,25 @@ export default function AIInterviewRoomPage() {
   const currentRoundNumber = jobConfig?.currentRoundNumber || 1;
   const { data: nextRound } = useNextRound(applicationId, currentRoundNumber);
   
+  // Get current user ID for recording
+  const [candidateId, setCandidateId] = useState<string | null>(null);
+  
+  // Interview recording hook
+  const interviewRecording = useInterviewRecording({
+    applicationId,
+    candidateId,
+    onRecordingComplete: (url) => {
+      console.log("Recording saved:", url);
+    },
+  });
+
+  // Proctoring logger hook
+  const proctoringLogger = useProctoringLogger({
+    applicationId,
+    recordingId: interviewRecording.recordingId,
+    candidateId,
+  });
+  
   // Job context for dynamic configuration
   const [jobContext, setJobContext] = useState<{
     toughnessLevel: number;
@@ -162,6 +184,9 @@ export default function AIInterviewRoomPage() {
         let candidateName: string | undefined;
         
         if (user) {
+          // Set candidate ID for recording
+          setCandidateId(user.id);
+          
           const { data: profile } = await supabase
             .from("profiles")
             .select("full_name")
@@ -278,6 +303,15 @@ export default function AIInterviewRoomPage() {
     setStatus("in-progress");
     setIsLoading(true);
 
+    // Start recording and proctoring
+    try {
+      await interviewRecording.startRecording();
+      proctoringLogger.startLogging();
+    } catch (error) {
+      console.error("Failed to start recording:", error);
+      // Continue even if recording fails
+    }
+
     try {
       const greeting = await sendToAgent([
         { role: "user", content: "Start the interview. Greet me and introduce yourself briefly." }
@@ -310,7 +344,7 @@ export default function AIInterviewRoomPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [toast, isSpeaking, speak]);
+  }, [toast, isSpeaking, speak, interviewRecording, proctoringLogger]);
 
   // Send message to AI agent
   const sendToAgent = async (conversationMessages: Array<{ role: string; content: string }>) => {
@@ -455,7 +489,27 @@ export default function AIInterviewRoomPage() {
   // Handle proctoring events
   const handleProctoringEvent = useCallback((event: ProctoringEvent) => {
     setProctoringEvents((prev) => [...prev, event]);
-  }, []);
+    // Also log to database via proctoring logger
+    if (applicationId && candidateId) {
+      // Map local event type to valid proctoring log event type
+      const validEventTypes = [
+        "face_detected", "face_not_visible", "multiple_faces", "looking_away",
+        "tab_switch", "copy_paste", "audio_anomaly", "suspicious_movement",
+        "recording_started", "recording_stopped", "camera_blocked", "screen_share_detected"
+      ] as const;
+      
+      const eventType = validEventTypes.includes(event.type as any) 
+        ? event.type as typeof validEventTypes[number]
+        : "suspicious_movement";
+        
+      proctoringLogger.logEvent({
+        type: eventType,
+        timestamp: event.timestamp,
+        description: event.description,
+        severity: event.severity,
+      });
+    }
+  }, [applicationId, candidateId, proctoringLogger]);
 
   // End interview
   const handleEndInterview = useCallback(async () => {
@@ -465,6 +519,14 @@ export default function AIInterviewRoomPage() {
     
     if (timerRef.current) {
       clearInterval(timerRef.current);
+    }
+
+    // Stop recording and proctoring
+    try {
+      interviewRecording.stopRecording();
+      await proctoringLogger.stopLogging();
+    } catch (error) {
+      console.error("Error stopping recording/proctoring:", error);
     }
 
     try {
@@ -523,7 +585,7 @@ export default function AIInterviewRoomPage() {
 
     setStatus("completed");
     setShowCompletionDialog(true);
-  }, [messages, isSpeaking, speak, stopSpeaking, applicationId, jobConfig]);
+  }, [messages, isSpeaking, speak, stopSpeaking, applicationId, jobConfig, interviewRecording, proctoringLogger]);
 
   // Toggle listening
   const toggleListening = useCallback(() => {
@@ -894,6 +956,28 @@ export default function AIInterviewRoomPage() {
             aiSpeaking={aiSpeaking}
             className="flex-1"
           />
+          
+          {/* Recording Status */}
+          {status === "in-progress" && interviewRecording.isRecording && (
+            <Badge variant="outline" className="gap-1 text-danger border-danger/30 justify-center py-1">
+              <Video className="h-3 w-3 animate-pulse" />
+              Recording
+            </Badge>
+          )}
+          
+          {/* Proctoring Monitor - Camera Activity */}
+          <ProctoringMonitor
+            isActive={status === "in-progress"}
+            onEvent={handleProctoringEvent}
+            onTrustScoreChange={(score) => {
+              // Trust score is also tracked by anti-cheat system
+            }}
+            applicationId={applicationId}
+            candidateId={candidateId}
+            recordingId={interviewRecording.recordingId}
+            enableCameraMonitoring={true}
+          />
+          
           {/* Anti-cheat overlay */}
           <AntiCheatOverlay
             state={antiCheat}
