@@ -408,9 +408,11 @@ export function RealtimeVoiceAgent({
         return;
       }
 
-      // Build dynamic overrides for personalization
+      // Build dynamic overrides for personalization (only for authenticated connections)
       const dynamicOverrides: any = {};
-      if (candidateName) {
+      const useOverrides = !data?.usePublicMode && candidateName;
+      
+      if (useOverrides) {
         dynamicOverrides.agent = {
           firstMessage: `Hello ${candidateName}! I'm your AI interviewer for today's ${jobTitle || 'position'} interview. Before we begin, I'd like to remind you that this session will evaluate your ${jobField || 'technical'} skills. Feel free to think aloud as you work through problems. Are you ready to start?`,
         };
@@ -434,16 +436,33 @@ export function RealtimeVoiceAgent({
         if (data?.message) {
           console.warn("⚠️", data.message);
         }
-        // For public agent mode, we pass overrides if available
-        await conversation.startSession({
-          agentId: data.agentId as string,
-          ...(Object.keys(dynamicOverrides).length > 0 && { overrides: dynamicOverrides }),
-        } as any);
+        
+        // For public agent mode - DO NOT pass overrides, they're not supported
+        // and can cause immediate disconnection
+        try {
+          await conversation.startSession({
+            agentId: data.agentId as string,
+          } as any);
+        } catch (publicModeError: any) {
+          console.error("❌ Public agent connection failed:", publicModeError);
+          // If public mode fails, show helpful message
+          throw new Error(
+            "Could not connect to voice agent. Please ensure the ElevenLabs agent is set to 'public' in your dashboard, or update your API key to include 'convai_write' permission."
+          );
+        }
       } else {
         throw new Error("No valid connection method available. Please check your ElevenLabs configuration.");
       }
       
-      console.log("✅ Session started successfully");
+      // Wait a moment to ensure connection is stable before declaring success
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Check if session is still active after stabilization delay
+      if (!sessionActiveRef.current) {
+        throw new Error("Connection dropped immediately after starting. The agent may not be properly configured.");
+      }
+      
+      console.log("✅ Session started and verified stable");
     } catch (error) {
       console.error("❌ Failed to start conversation:", error);
       connectionLockRef.current = false;
