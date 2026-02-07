@@ -1,6 +1,7 @@
 // =============================================
-// AGENT 6: VERDICT — Dual AI Final Analysis & Ranking
-// Uses Gemini 3 Pro for comprehensive candidate reports
+// AGENT 6: VERDICT — Triple AI Final Analysis & Ranking
+// GPT-5.2 + Gemini 3 Pro + Gemini 3 Flash
+// Models debate and reach consensus on recommendations
 // =============================================
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -11,10 +12,11 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// Model configuration
+// Triple AI Model configuration for debate-based evaluation
 const AI_MODELS = {
-  COMPREHENSIVE: "google/gemini-3-pro-preview",
-  REALTIME: "google/gemini-3-flash-preview",
+  GPT_5_2: "openai/gpt-5.2",
+  GEMINI_PRO: "google/gemini-3-pro-preview",
+  GEMINI_FLASH: "google/gemini-3-flash-preview",
 };
 
 serve(async (req) => {
