@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useForm, useFieldArray } from "react-hook-form";
@@ -14,6 +14,8 @@ import { Slider } from "@/components/ui/slider";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
+import { useJobValidation } from "@/hooks/useJobValidation";
+import { ValidationIndicator, CompletenessScore } from "@/components/jobs/ValidationIndicator";
 import {
   Select,
   SelectContent,
@@ -111,6 +113,7 @@ export default function PostJobPage() {
   const [currentStep, setCurrentStep] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [skillInput, setSkillInput] = useState("");
+  const [existingJobs, setExistingJobs] = useState<string[]>([]);
   const { toast } = useToast();
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -140,6 +143,50 @@ export default function PostJobPage() {
       ],
     },
   });
+
+  // AI Validation hook
+  const {
+    overallScore,
+    validateField,
+    getFieldStatus,
+    getSuggestions,
+    hasErrors,
+  } = useJobValidation({
+    existingJobs,
+    jobField: form.watch("field"),
+    experienceLevel: form.watch("experienceLevel"),
+  });
+
+  // Fetch existing jobs for duplicate detection
+  useEffect(() => {
+    async function fetchExistingJobs() {
+      if (!user) return;
+      const { data } = await supabase
+        .from("jobs")
+        .select("title")
+        .eq("interviewer_id", user.id);
+      
+      if (data) {
+        setExistingJobs(data.map((j) => j.title));
+      }
+    }
+    fetchExistingJobs();
+  }, [user]);
+
+  // Validate on field change
+  const handleTitleChange = useCallback(
+    (value: string) => {
+      validateField("title", value);
+    },
+    [validateField]
+  );
+
+  const handleDescriptionChange = useCallback(
+    (value: string) => {
+      validateField("description", value);
+    },
+    [validateField]
+  );
 
   const { fields: roundFields, append: appendRound, remove: removeRound } = useFieldArray({
     control: form.control,
@@ -273,19 +320,22 @@ export default function PostJobPage() {
   return (
     <div className="mx-auto max-w-4xl">
       {/* Header */}
-      <div className="mb-6">
-        <Button 
-          variant="ghost" 
-          onClick={() => navigate("/dashboard/jobs")}
-          className="mb-4"
-        >
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          Back to Jobs
-        </Button>
-        <h1 className="text-2xl font-bold">Post a New Job</h1>
-        <p className="text-muted-foreground">
-          Create a job listing with AI-powered interview configuration
-        </p>
+      <div className="mb-6 flex items-center justify-between">
+        <div>
+          <Button 
+            variant="ghost" 
+            onClick={() => navigate("/dashboard/jobs")}
+            className="mb-4"
+          >
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Back to Jobs
+          </Button>
+          <h1 className="text-2xl font-bold">Post a New Job</h1>
+          <p className="text-muted-foreground">
+            Create a job listing with AI-powered validation
+          </p>
+        </div>
+        <CompletenessScore score={overallScore} />
       </div>
 
       {/* Progress Steps */}
@@ -339,10 +389,29 @@ export default function PostJobPage() {
                   name="title"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Job Title</FormLabel>
+                      <div className="flex items-center justify-between">
+                        <FormLabel>Job Title</FormLabel>
+                        <ValidationIndicator
+                          status={getFieldStatus("title")}
+                          suggestions={getSuggestions("title")}
+                          compact
+                        />
+                      </div>
                       <FormControl>
-                        <Input placeholder="Senior Frontend Developer" {...field} />
+                        <Input
+                          placeholder="Senior Frontend Developer"
+                          {...field}
+                          onChange={(e) => {
+                            field.onChange(e);
+                            handleTitleChange(e.target.value);
+                          }}
+                        />
                       </FormControl>
+                      <ValidationIndicator
+                        status={getFieldStatus("title")}
+                        suggestions={getSuggestions("title")}
+                        showScore={false}
+                      />
                       <FormMessage />
                     </FormItem>
                   )}
@@ -353,17 +422,33 @@ export default function PostJobPage() {
                   name="description"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Job Description</FormLabel>
+                      <div className="flex items-center justify-between">
+                        <FormLabel>Job Description</FormLabel>
+                        <ValidationIndicator
+                          status={getFieldStatus("description")}
+                          suggestions={getSuggestions("description")}
+                          compact
+                        />
+                      </div>
                       <FormControl>
                         <Textarea
                           placeholder="Describe the role, responsibilities, and what you're looking for..."
                           className="min-h-[150px]"
                           {...field}
+                          onChange={(e) => {
+                            field.onChange(e);
+                            handleDescriptionChange(e.target.value);
+                          }}
                         />
                       </FormControl>
                       <FormDescription>
                         Minimum 50 characters. Be specific about requirements.
                       </FormDescription>
+                      <ValidationIndicator
+                        status={getFieldStatus("description")}
+                        suggestions={getSuggestions("description")}
+                        showScore={false}
+                      />
                       <FormMessage />
                     </FormItem>
                   )}

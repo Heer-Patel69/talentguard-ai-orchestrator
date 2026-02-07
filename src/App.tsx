@@ -31,6 +31,7 @@ const PricingPage = lazy(() => import("./pages/PricingPage"));
 const DashboardOverview = lazy(() => import("./pages/dashboard/DashboardOverview"));
 const PostJobPage = lazy(() => import("./pages/dashboard/PostJobPage"));
 const ManageJobsPage = lazy(() => import("./pages/dashboard/ManageJobsPage"));
+const EditJobPage = lazy(() => import("./pages/dashboard/EditJobPage"));
 const CandidatesPage = lazy(() => import("./pages/dashboard/CandidatesPage"));
 const AnalyticsPage = lazy(() => import("./pages/dashboard/AnalyticsPage"));
 const SettingsPage = lazy(() => import("./pages/dashboard/SettingsPage"));
@@ -212,9 +213,19 @@ const App = () => (
                       <ProtectedRoute allowedRoles={["interviewer"]}>
                         <DashboardLayout>
                           <PostJobPage />
-                        </DashboardLayout>
-                      </ProtectedRoute>
-                    }
+                      </DashboardLayout>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/dashboard/jobs/:id/edit"
+                  element={
+                    <ProtectedRoute allowedRoles={["interviewer"]}>
+                      <DashboardLayout>
+                        <EditJobPage />
+                      </DashboardLayout>
+                    </ProtectedRoute>
+                  }
                   />
                   <Route
                     path="/dashboard/candidates"

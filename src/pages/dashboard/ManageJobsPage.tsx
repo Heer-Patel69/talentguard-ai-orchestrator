@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { GlassCard } from "@/components/ui/glass-card";
@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
+import { useRealtimeJobs } from "@/hooks/useRealtimeJobs";
 import {
   Select,
   SelectContent,
@@ -17,20 +18,17 @@ import {
   Briefcase,
   Plus,
   Search,
-  Filter,
   MoreVertical,
   Users,
   Clock,
   MapPin,
   Edit,
   Trash2,
-  Eye,
   Pause,
   Play,
   Copy,
-  Calendar,
-  TrendingUp,
-  ChevronDown,
+  Wifi,
+  WifiOff,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -41,6 +39,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { Badge } from "@/components/ui/badge";
 
 interface Job {
   id: string;
@@ -70,6 +69,31 @@ export default function ManageJobsPage() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const { user } = useAuth();
   const { toast } = useToast();
+
+  // Real-time subscription for live updates
+  const handleJobInsert = useCallback((newJob: Job) => {
+    setJobs((prev) => [{ ...newJob, applications_count: 0 }, ...prev]);
+  }, []);
+
+  const handleJobUpdate = useCallback((updatedJob: Job) => {
+    setJobs((prev) =>
+      prev.map((job) =>
+        job.id === updatedJob.id ? { ...job, ...updatedJob } : job
+      )
+    );
+  }, []);
+
+  const handleJobDelete = useCallback((deletedId: string) => {
+    setJobs((prev) => prev.filter((job) => job.id !== deletedId));
+  }, []);
+
+  const { isSubscribed } = useRealtimeJobs({
+    userId: user?.id,
+    onInsert: handleJobInsert,
+    onUpdate: handleJobUpdate,
+    onDelete: handleJobDelete,
+    showToasts: false, // We handle toasts manually
+  });
 
   useEffect(() => {
     fetchJobs();
@@ -193,9 +217,32 @@ export default function ManageJobsPage() {
       {/* Header */}
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Manage Jobs</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-bold">Manage Jobs</h1>
+            <Badge
+              variant="outline"
+              className={cn(
+                "gap-1",
+                isSubscribed
+                  ? "text-success border-success/30"
+                  : "text-muted-foreground"
+              )}
+            >
+              {isSubscribed ? (
+                <>
+                  <Wifi className="h-3 w-3" />
+                  Live
+                </>
+              ) : (
+                <>
+                  <WifiOff className="h-3 w-3" />
+                  Offline
+                </>
+              )}
+            </Badge>
+          </div>
           <p className="text-muted-foreground">
-            View and manage all your job postings
+            View and manage all your job postings (updates in real-time)
           </p>
         </div>
         <Button variant="hero" asChild>
