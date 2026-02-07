@@ -1,7 +1,7 @@
 // =============================================
-// AGENT 2: QUIZMASTER — Dual AI MCQ Evaluation
-// Uses Gemini 3 Pro for comprehensive analysis
-// Uses Gemini 3 Flash for real-time feedback
+// AGENT 2: QUIZMASTER — Triple AI Debate Evaluation
+// GPT-5.2 + Gemini 3 Pro + Gemini 3 Flash
+// Models debate and reach consensus on scores
 // =============================================
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -12,10 +12,11 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// Model configuration for dual AI evaluation
+// Triple AI Model configuration for debate-based evaluation
 const AI_MODELS = {
-  COMPREHENSIVE: "google/gemini-3-pro-preview",
-  REALTIME: "google/gemini-3-flash-preview",
+  GPT_5_2: "openai/gpt-5.2",
+  GEMINI_PRO: "google/gemini-3-pro-preview",
+  GEMINI_FLASH: "google/gemini-3-flash-preview",
 };
 
 serve(async (req) => {
