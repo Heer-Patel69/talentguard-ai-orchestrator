@@ -41,6 +41,8 @@ import {
   Mic,
   Zap,
   Shield,
+  ArrowRight,
+  Loader2,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { GlassCard } from "@/components/ui/glass-card";
@@ -48,6 +50,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { useAntiCheat } from "@/hooks/useAntiCheat";
 import { AntiCheatOverlay, AntiCheatStatusBadge } from "@/components/proctoring";
+import { useJobRoundConfig, useNextRound } from "@/hooks/useJobRoundConfig";
 
 type InterviewStatus = "preparing" | "in-progress" | "completing" | "completed";
 type InterviewType = "technical" | "system-design" | "behavioral";
@@ -123,6 +126,22 @@ export default function AIInterviewRoomPage() {
   const [currentScore, setCurrentScore] = useState(0);
   const [questionCount, setQuestionCount] = useState(0);
   const [proctoringEvents, setProctoringEvents] = useState<ProctoringEvent[]>([]);
+  
+  // Evaluation results
+  const [evaluationResult, setEvaluationResult] = useState<{
+    score: number;
+    passed: boolean;
+    strengths: string[];
+    weaknesses: string[];
+  } | null>(null);
+  const [isEvaluating, setIsEvaluating] = useState(false);
+  const [isAdvancing, setIsAdvancing] = useState(false);
+  
+  // Job and round configuration
+  const applicationId = searchParams.get("application");
+  const { data: jobConfig } = useJobRoundConfig(applicationId);
+  const currentRoundNumber = jobConfig?.currentRoundNumber || 1;
+  const { data: nextRound } = useNextRound(applicationId, currentRoundNumber);
   
   // Job context for dynamic configuration
   const [jobContext, setJobContext] = useState<{
@@ -441,6 +460,7 @@ export default function AIInterviewRoomPage() {
   // End interview
   const handleEndInterview = useCallback(async () => {
     setStatus("completing");
+    setIsEvaluating(true);
     stopSpeaking();
     
     if (timerRef.current) {
@@ -448,6 +468,7 @@ export default function AIInterviewRoomPage() {
     }
 
     try {
+      // Get closing message
       const closingMessage = await sendToAgent([
         ...messages.map((m) => ({ role: m.role, content: m.content })),
         { role: "user", content: "The interview time is up. Please conclude the interview with a brief thank you and feedback summary." },
@@ -468,13 +489,41 @@ export default function AIInterviewRoomPage() {
           speak(closingMessage);
         }
       }
+      
+      // Call the agent-interviewer edge function to evaluate the full interview
+      if (applicationId) {
+        const { data: evalResult, error: evalError } = await supabase.functions.invoke("agent-interviewer", {
+          body: {
+            application_id: applicationId,
+            action: "end_interview",
+          },
+        });
+
+        if (evalError) {
+          console.error("Evaluation error:", evalError);
+        } else if (evalResult?.result) {
+          const score = evalResult.result.score || 0;
+          const passingScore = jobConfig?.job?.round_config?.interview?.passing_score || 60;
+          const passed = score >= passingScore;
+          
+          setCurrentScore(score);
+          setEvaluationResult({
+            score,
+            passed,
+            strengths: evalResult.evaluation?.strengths || [],
+            weaknesses: evalResult.evaluation?.weaknesses || [],
+          });
+        }
+      }
     } catch (error) {
-      console.error("Failed to get closing message:", error);
+      console.error("Failed to complete interview:", error);
+    } finally {
+      setIsEvaluating(false);
     }
 
     setStatus("completed");
     setShowCompletionDialog(true);
-  }, [messages, isSpeaking, speak, stopSpeaking]);
+  }, [messages, isSpeaking, speak, stopSpeaking, applicationId, jobConfig]);
 
   // Toggle listening
   const toggleListening = useCallback(() => {
@@ -567,8 +616,55 @@ export default function AIInterviewRoomPage() {
     );
   }
 
+  // Handle advancing to next round
+  const handleAdvanceToNext = async () => {
+    if (!applicationId || !nextRound) return;
+
+    setIsAdvancing(true);
+    try {
+      // Update application to next round
+      const { error } = await supabase
+        .from("applications")
+        .update({
+          current_round: nextRound.round_number,
+          status: "interviewing",
+        })
+        .eq("id", applicationId);
+
+      if (error) throw error;
+
+      // Navigate to appropriate assessment
+      const routeMap: Record<string, string> = {
+        mcq: "/candidate/assessment/mcq",
+        coding: "/candidate/assessment/coding",
+        behavioral: "/candidate/interview/live",
+        system_design: "/candidate/interview/live",
+        live_ai_interview: "/candidate/interview/live",
+      };
+
+      const route = routeMap[nextRound.round_type] || "/candidate/interview";
+      navigate(`${route}?application=${applicationId}`);
+
+      toast({
+        title: "Moving to next round!",
+        description: `Get ready for your ${nextRound.round_type.replace(/_/g, " ")}`,
+      });
+    } catch (error) {
+      console.error("Error advancing to next round:", error);
+      toast({
+        title: "Error",
+        description: "Failed to advance to next round. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsAdvancing(false);
+    }
+  };
+
   // Render completed screen
   if (status === "completed" && showCompletionDialog) {
+    const passed = evaluationResult?.passed ?? (currentScore >= 60);
+    
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <motion.div
@@ -583,23 +679,44 @@ export default function AIInterviewRoomPage() {
               transition={{ type: "spring", delay: 0.2 }}
               className="mb-6"
             >
-              <div className="h-24 w-24 rounded-full bg-success/10 flex items-center justify-center mx-auto mb-4">
-                <Trophy className="h-12 w-12 text-success" />
+              <div className={cn(
+                "h-24 w-24 rounded-full flex items-center justify-center mx-auto mb-4",
+                passed ? "bg-success/10" : "bg-danger/10"
+              )}>
+                <Trophy className={cn("h-12 w-12", passed ? "text-success" : "text-danger")} />
               </div>
               <h1 className="text-2xl font-bold mb-2">Interview Complete!</h1>
               <p className="text-muted-foreground">
-                Thank you for completing the interview. Your responses are being analyzed.
+                {isEvaluating 
+                  ? "Analyzing your responses..." 
+                  : passed 
+                    ? "Congratulations! You've passed this round." 
+                    : "Thank you for completing the interview."}
               </p>
             </motion.div>
 
-            <div className="p-4 rounded-lg bg-primary/5 border border-primary/20 mb-6">
+            <div className={cn(
+              "p-4 rounded-lg mb-6",
+              passed ? "bg-success/10 border border-success/20" : "bg-primary/5 border border-primary/20"
+            )}>
               <div className="flex items-center justify-between mb-2">
-                <span className="text-sm text-muted-foreground">Preliminary Score</span>
-                <Badge className="bg-primary text-primary-foreground">Processing...</Badge>
+                <span className="text-sm text-muted-foreground">Your Score</span>
+                {isEvaluating ? (
+                  <Badge variant="secondary" className="gap-1">
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    Evaluating...
+                  </Badge>
+                ) : (
+                  <Badge className={passed ? "bg-success text-success-foreground" : "bg-primary text-primary-foreground"}>
+                    {passed ? "Passed" : "Completed"}
+                  </Badge>
+                )}
               </div>
               <div className="flex items-center gap-4">
                 <Progress value={currentScore} className="flex-1" />
-                <span className="text-2xl font-bold">{currentScore}%</span>
+                <span className={cn("text-2xl font-bold", passed ? "text-success" : "text-foreground")}>
+                  {currentScore}%
+                </span>
               </div>
             </div>
 
@@ -622,11 +739,72 @@ export default function AIInterviewRoomPage() {
               </div>
             </div>
 
-            <p className="text-sm text-muted-foreground mb-6">
-              Detailed AI review will be available within 24 hours. Check your dashboard for updates.
-            </p>
+            {/* Strengths & Weaknesses */}
+            {evaluationResult && (evaluationResult.strengths.length > 0 || evaluationResult.weaknesses.length > 0) && (
+              <div className="mb-6 text-left space-y-3">
+                {evaluationResult.strengths.length > 0 && (
+                  <div className="p-3 rounded-lg bg-success/10 border border-success/20">
+                    <p className="text-sm font-medium text-success mb-1">Strengths</p>
+                    <ul className="text-sm text-muted-foreground list-disc list-inside">
+                      {evaluationResult.strengths.slice(0, 3).map((s, i) => (
+                        <li key={i}>{s}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {evaluationResult.weaknesses.length > 0 && (
+                  <div className="p-3 rounded-lg bg-warning/10 border border-warning/20">
+                    <p className="text-sm font-medium text-warning mb-1">Areas for Improvement</p>
+                    <ul className="text-sm text-muted-foreground list-disc list-inside">
+                      {evaluationResult.weaknesses.slice(0, 3).map((w, i) => (
+                        <li key={i}>{w}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
 
-            <Button onClick={() => navigate("/candidate")} className="w-full">
+            {/* Next Round Button */}
+            {passed && nextRound && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.5 }}
+                className="mb-6 p-4 rounded-xl bg-primary/10 border border-primary/30"
+              >
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="h-10 w-10 rounded-full bg-primary/20 flex items-center justify-center">
+                    <Sparkles className="h-5 w-5 text-primary" />
+                  </div>
+                  <div className="text-left">
+                    <h4 className="font-semibold">Next: {nextRound.round_type.replace(/_/g, " ")}</h4>
+                    <p className="text-sm text-muted-foreground">
+                      Round {nextRound.round_number} • {nextRound.duration_minutes} minutes
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  onClick={handleAdvanceToNext}
+                  className="w-full bg-primary hover:bg-primary/90"
+                  disabled={isAdvancing}
+                >
+                  {isAdvancing ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Loading Next Assessment...
+                    </>
+                  ) : (
+                    <>
+                      Proceed to Next Round
+                      <ArrowRight className="ml-2 h-4 w-4" />
+                    </>
+                  )}
+                </Button>
+              </motion.div>
+            )}
+
+            <Button onClick={() => navigate("/candidate")} className="w-full" variant={passed && nextRound ? "outline" : "default"}>
               Return to Dashboard
             </Button>
           </GlassCard>
