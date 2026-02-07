@@ -108,13 +108,13 @@ export default function LandingPage() {
 
   return (
     <div className="min-h-screen overflow-x-hidden">
-      {/* Interactive cursor-following background */}
+      {/* Optimized interactive background */}
       <InteractiveBackground 
-        particleCount={60}
+        particleCount={25}
         enableParticles={true}
         enableGradientOrbs={true}
         enableGridPattern={true}
-        enableNoise={true}
+        enableNoise={false}
       />
       
       <Navbar />
