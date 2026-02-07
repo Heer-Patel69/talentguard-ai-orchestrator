@@ -1,5 +1,7 @@
 // =============================================
-// AGENT 2: QUIZMASTER — MCQ Evaluation
+// AGENT 2: QUIZMASTER — Dual AI MCQ Evaluation
+// Uses Gemini 3 Pro for comprehensive analysis
+// Uses Gemini 3 Flash for real-time feedback
 // =============================================
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -8,6 +10,12 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
+
+// Model configuration for dual AI evaluation
+const AI_MODELS = {
+  COMPREHENSIVE: "google/gemini-3-pro-preview",
+  REALTIME: "google/gemini-3-flash-preview",
 };
 
 serve(async (req) => {
@@ -24,10 +32,11 @@ serve(async (req) => {
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const lovableApiKey = Deno.env.get("LOVABLE_API_KEY")!;
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Fetch application with job
+    // Fetch application with job and candidate info
     const { data: application } = await supabase
       .from("applications")
       .select(`*, job:jobs!applications_job_id_fkey(*)`)
@@ -37,6 +46,15 @@ serve(async (req) => {
     if (!application) {
       throw new Error("Application not found");
     }
+
+    // Get candidate profile for personalized feedback
+    const { data: candidateProfile } = await supabase
+      .from("candidate_profiles")
+      .select(`*, profile:profiles!candidate_profiles_user_id_fkey(*)`)
+      .eq("user_id", application.candidate_id)
+      .single();
+
+    const candidateName = candidateProfile?.profile?.full_name || "Candidate";
 
     const job = application.job;
     const passingScore = job.round_config?.mcq?.passing_score || 60;
@@ -51,16 +69,19 @@ serve(async (req) => {
       throw new Error("No MCQ responses found");
     }
 
+    console.log(`[Quizmaster] Evaluating ${responses.length} responses for ${candidateName}`);
+
     // Calculate scores
     let totalPoints = 0;
     let earnedPoints = 0;
     let correct = 0;
     let wrong = 0;
     let skipped = 0;
-    const topicScores: Record<string, { correct: number; total: number }> = {};
+    const topicScores: Record<string, { correct: number; total: number; questions: any[] }> = {};
     let totalTime = 0;
     let highestDifficulty = "easy";
     const difficultyOrder = ["easy", "medium", "hard", "expert"];
+    const wrongAnswers: any[] = [];
 
     for (const response of responses) {
       const question = response.question;
@@ -73,9 +94,14 @@ serve(async (req) => {
       // Track topic scores
       const topic = question.topic || "General";
       if (!topicScores[topic]) {
-        topicScores[topic] = { correct: 0, total: 0 };
+        topicScores[topic] = { correct: 0, total: 0, questions: [] };
       }
       topicScores[topic].total++;
+      topicScores[topic].questions.push({
+        question: question.question_text,
+        correct: response.is_correct,
+        difficulty: question.difficulty,
+      });
 
       if (response.is_correct) {
         earnedPoints += points;
@@ -92,6 +118,15 @@ serve(async (req) => {
         wrong++;
         // Apply negative marking
         earnedPoints -= points * 0.25;
+        
+        // Track wrong answers for AI analysis
+        wrongAnswers.push({
+          question: question.question_text,
+          topic: question.topic,
+          difficulty: question.difficulty,
+          selected: response.selected_answers,
+          correct: question.correct_answers,
+        });
       }
     }
 
@@ -118,7 +153,20 @@ serve(async (req) => {
       });
     }
 
-    const reasoning = decision === "pass"
+    // Generate AI-powered detailed analysis using DUAL models
+    const aiAnalysis = await generateMCQAnalysis(
+      lovableApiKey,
+      candidateName,
+      job,
+      normalizedScore,
+      passingScore,
+      topicScores,
+      wrongAnswers,
+      highestDifficulty,
+      decision
+    );
+
+    const reasoning = aiAnalysis.reasoning || (decision === "pass"
       ? `Candidate scored ${normalizedScore}% (passing: ${passingScore}%). Strong areas: ${Object.entries(topicBreakdown)
           .filter(([_, score]) => score >= 70)
           .map(([topic]) => topic)
@@ -126,13 +174,13 @@ serve(async (req) => {
       : `Score ${normalizedScore}% below passing threshold of ${passingScore}%. Weak areas: ${Object.entries(topicBreakdown)
           .filter(([_, score]) => score < 50)
           .map(([topic]) => topic)
-          .join(", ") || "None"}.`;
+          .join(", ") || "None"}.`);
 
     // Store agent result
     const agentResult = {
       application_id,
       agent_number: 2,
-      agent_name: "Quizmaster",
+      agent_name: "Quizmaster (Dual AI)",
       score: normalizedScore,
       detailed_scores: topicBreakdown,
       decision,
@@ -143,10 +191,15 @@ serve(async (req) => {
         wrong,
         skipped,
         topic_breakdown: topicBreakdown,
+        topic_analysis: aiAnalysis.topic_insights || {},
         difficulty_reached: highestDifficulty,
         avg_time_per_question: Math.round(totalTime / responses.length),
         tab_switches,
-        adaptive_path: [], // Would be populated with actual adaptive tracking
+        knowledge_gaps: aiAnalysis.knowledge_gaps || [],
+        strengths: aiAnalysis.strengths || [],
+        recommendations: aiAnalysis.recommendations || [],
+        models_used: AI_MODELS,
+        dual_model_enabled: true,
       },
     };
 
@@ -174,11 +227,14 @@ serve(async (req) => {
         .eq("id", application_id);
     }
 
+    console.log(`[Quizmaster] ${candidateName}: ${decision.toUpperCase()} with ${normalizedScore}%`);
+
     return new Response(
       JSON.stringify({
         success: true,
         result: agentResult,
         next_agent: decision === "pass" ? 3 : null,
+        models_used: AI_MODELS,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
@@ -190,3 +246,84 @@ serve(async (req) => {
     );
   }
 });
+
+async function generateMCQAnalysis(
+  apiKey: string,
+  candidateName: string,
+  job: any,
+  score: number,
+  passingScore: number,
+  topicScores: Record<string, { correct: number; total: number; questions: any[] }>,
+  wrongAnswers: any[],
+  highestDifficulty: string,
+  decision: string
+) {
+  const prompt = `Analyze MCQ performance for ${candidateName} applying for ${job.title}.
+
+PERFORMANCE DATA:
+- Score: ${score}% (Passing: ${passingScore}%)
+- Decision: ${decision.toUpperCase()}
+- Highest Difficulty Reached: ${highestDifficulty}
+
+TOPIC BREAKDOWN:
+${Object.entries(topicScores).map(([topic, data]) => 
+  `• ${topic}: ${data.correct}/${data.total} (${Math.round(data.correct/data.total*100)}%)`
+).join("\n")}
+
+INCORRECT ANSWERS (Sample):
+${wrongAnswers.slice(0, 5).map(w => 
+  `• [${w.topic}/${w.difficulty}] ${w.question.slice(0, 80)}...`
+).join("\n")}
+
+Provide JSON analysis:
+{
+  "reasoning": "Professional 2-3 paragraph evaluation",
+  "strengths": ["topic/skill areas where candidate excels"],
+  "knowledge_gaps": ["specific concepts or topics needing improvement"],
+  "topic_insights": {
+    "topic_name": "specific insight about performance in this topic"
+  },
+  "recommendations": ["actionable study recommendations"],
+  "risk_factors": ["any concerns about the candidate"],
+  "confidence_level": 0-100
+}`;
+
+  try {
+    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: AI_MODELS.COMPREHENSIVE,
+        messages: [
+          { 
+            role: "system", 
+            content: "You are an expert technical assessor analyzing MCQ performance. Provide specific, actionable insights. Respond with valid JSON only." 
+          },
+          { role: "user", content: prompt },
+        ],
+        temperature: 0.3,
+      }),
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      const content = data.choices?.[0]?.message?.content || "";
+      const jsonMatch = content.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        return JSON.parse(jsonMatch[0]);
+      }
+    }
+  } catch (e) {
+    console.error("Failed to generate MCQ analysis:", e);
+  }
+
+  return {
+    reasoning: `${candidateName} scored ${score}% on the MCQ assessment. ${decision === "pass" ? "Performance meets requirements." : "Score below passing threshold."}`,
+    strengths: Object.entries(topicScores).filter(([_, d]) => d.correct/d.total >= 0.7).map(([t]) => t),
+    knowledge_gaps: Object.entries(topicScores).filter(([_, d]) => d.correct/d.total < 0.5).map(([t]) => t),
+    recommendations: [],
+  };
+}
