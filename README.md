@@ -1,151 +1,174 @@
-# HireMinds AI - Autonomous AI Hiring Platform
+HireMinds AI — Intelligent Hiring Infrastructure
+<div align="center"> <img src="https://img.shields.io/badge/React-18-blue?logo=react" /> <img src="https://img.shields.io/badge/TypeScript-5-blue?logo=typescript" /> <img src="https://img.shields.io/badge/Tailwind-3-blue?logo=tailwindcss" /> <img src="https://img.shields.io/badge/Supabase-Cloud-green?logo=supabase" /> </div>
+Overview
 
-<div align="center">
-  <img src="https://img.shields.io/badge/React-18-blue?logo=react" alt="React 18" />
-  <img src="https://img.shields.io/badge/TypeScript-5-blue?logo=typescript" alt="TypeScript" />
-  <img src="https://img.shields.io/badge/Tailwind-3-blue?logo=tailwindcss" alt="Tailwind CSS" />
-  <img src="https://img.shields.io/badge/Supabase-Cloud-green?logo=supabase" alt="Supabase" />
-</div>
+HireMinds AI is a modern hiring platform engineered to streamline recruitment through structured automation, intelligent evaluation workflows, and data-backed decision support.
 
-## 🚀 Overview
+The platform enables organizations to manage the entire hiring lifecycle — from candidate onboarding and technical assessments to evaluation and analytics — within a secure and scalable environment.
 
-HireMinds AI is an enterprise-grade, AI-powered hiring platform that automates the complete recruitment lifecycle. From candidate registration with identity verification to AI-conducted interviews and explainable decision-making.
+Built with reliability and performance in mind, HireMinds AI supports hiring teams that require speed without sacrificing oversight or fairness.
 
-### Key Features
+Core Capabilities
+Capability	Description
+Structured Interviews	Conduct consistent and repeatable candidate evaluations
+Integrated Code Editor	Assess technical skills in a production-grade environment
+Assessment Integrity	Multi-layer verification designed to protect evaluation quality
+Fairness Monitoring	Visibility into hiring patterns to support responsible decision-making
+Advanced Analytics	Clear insights into pipeline performance and hiring outcomes
+Continuous Improvement	Systems designed to evolve through measurable feedback
+Platform Architecture
+React Frontend
+      ↓
+Cloud Backend (Authentication, Database, Storage, Server Functions)
+      ↓
+Intelligence Layer
 
-| Feature | Description |
-|---------|-------------|
-| 🤖 **AI Interviews** | Real-time voice/video interviews with adaptive AI |
-| 💻 **Code Editor** | Monaco-based editor for technical assessments |
-| 🔒 **Fraud Detection** | Multi-layered proctoring and identity verification |
-| ⚖️ **Fairness Monitoring** | Bias detection with statistical analysis |
-| 📊 **Analytics** | Comprehensive hiring insights and trends |
-| 🎓 **Continuous Learning** | AI improvement through feedback loops |
 
-## 🏗️ Architecture
+The architecture follows a modular approach, allowing the platform to scale efficiently as organizational hiring needs expand.
 
-```
-Frontend (React + Vite)
-        ↓
-Supabase Backend (Auth, DB, Storage, Edge Functions)
-        ↓
-Lovable AI Gateway (Gemini, GPT-5)
-```
+For deeper technical details, refer to /docs/ARCHITECTURE.md.
 
-See [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) for detailed architecture documentation.
+Technology Stack
 
-## 🛠️ Tech Stack
+Frontend
 
-- **Frontend**: React 18, TypeScript, Vite
-- **Styling**: Tailwind CSS, shadcn/ui, Framer Motion
-- **State**: TanStack Query, React Context
-- **Backend**: Supabase (Postgres, Auth, Storage)
-- **AI**: Lovable AI Gateway
-- **Editor**: Monaco Editor
+React 18
 
-## 📁 Project Structure
+TypeScript
 
-```
+Vite
+
+User Interface
+
+Tailwind CSS
+
+shadcn/ui
+
+Framer Motion
+
+State Management
+
+TanStack Query
+
+React Context
+
+Backend
+
+Supabase (Postgres, Authentication, Storage)
+
+Developer Tooling
+
+Monaco Editor for technical assessments
+
+Project Structure
 src/
-├── components/         # React components
-│   ├── auth/          # Authentication
-│   ├── candidate/     # Candidate dashboard
-│   ├── dashboard/     # Interviewer dashboard
-│   ├── interview/     # AI interview room
-│   ├── fairness/      # Bias monitoring
-│   └── ui/            # Reusable UI components
-├── contexts/          # React contexts
-├── hooks/             # Custom hooks
-├── pages/             # Route pages
-└── integrations/      # Supabase client
+├── components/
+│   ├── auth/          Authentication flows
+│   ├── candidate/     Candidate experience
+│   ├── dashboard/     Recruiter workspace
+│   ├── interview/     Interview environment
+│   ├── fairness/      Monitoring tools
+│   └── ui/            Shared UI components
+├── contexts/          Global state providers
+├── hooks/             Custom React hooks
+├── pages/             Application routes
+└── integrations/      Backend clients
 
 supabase/
-├── functions/         # Edge functions
-└── migrations/        # Database migrations
+├── functions/         Server-side logic
+└── migrations/        Database versioning
 
 docs/
-├── ARCHITECTURE.md    # System architecture
-└── ETHICAL_SAFEGUARDS.md  # AI ethics documentation
-```
+├── ARCHITECTURE.md
+└── ETHICAL_SAFEGUARDS.md
 
-## 🚀 Getting Started
+Getting Started
+Prerequisites
 
-### Prerequisites
-- Node.js 18+
-- npm or yarn
+Node.js 18 or higher
 
-### Installation
+npm or yarn
 
-```bash
-# Clone the repository
+Installation
 git clone <YOUR_GIT_URL>
-
-# Navigate to project directory
 cd <YOUR_PROJECT_NAME>
 
-# Install dependencies
 npm install
-
-# Start development server
 npm run dev
-```
 
-### Environment
+Security and Data Protection
 
-Environment variables are automatically configured via Lovable Cloud:
-- `VITE_SUPABASE_URL`
-- `VITE_SUPABASE_PUBLISHABLE_KEY`
-- `VITE_SUPABASE_PROJECT_ID`
+Security is integrated across the platform architecture.
 
-## 🔒 Security
+Verified authentication workflows
 
-- **Authentication**: Email verification, role-based access
-- **Authorization**: Row-level security on all tables
-- **Data Protection**: Encryption at rest, input sanitization
-- **Proctoring**: Face verification, behavior analysis
+Role-based access control
 
-## ⚖️ Ethical AI
+Row-level database security
 
-See [docs/ETHICAL_SAFEGUARDS.md](./docs/ETHICAL_SAFEGUARDS.md) for our AI ethics policies including:
-- Bias detection and mitigation
-- Explainable AI decisions
-- Human oversight requirements
-- Data privacy practices
+Encryption for sensitive data
 
-## 📊 Features by Role
+Input validation and sanitization
 
-### Recruiters/Interviewers
-- Post and manage job listings
-- Monitor hiring funnel in Command Center
-- Review AI recommendations with override capability
-- Access fairness and analytics dashboards
-- Provide feedback for AI improvement
+Assessment monitoring safeguards
 
-### Candidates
-- Register with identity verification
-- Browse and apply to jobs
-- Take AI-powered interviews
-- Receive detailed performance feedback
-- Track application status
+Responsible Intelligence
 
-## 🤝 Contributing
+HireMinds AI is designed to promote transparent and accountable hiring practices.
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit changes (`git commit -m 'Add amazing feature'`)
-4. Push to branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+Principles include:
 
-## 📄 License
+Awareness and monitoring of potential bias
+
+Interpretable evaluation signals
+
+Human review capabilities
+
+Privacy-first data handling
+
+Additional details are available in /docs/ETHICAL_SAFEGUARDS.md.
+
+Designed for Hiring Teams and Candidates
+Recruiters and Hiring Teams
+
+Create and manage job postings
+
+Track candidates across the hiring funnel
+
+Review structured evaluation insights
+
+Access analytics dashboards
+
+Maintain final decision authority
+
+Candidates
+
+Secure registration and profile creation
+
+Discover relevant opportunities
+
+Complete structured assessments
+
+Receive performance feedback
+
+Monitor application status
+
+Contributing
+
+Contributions that improve stability, usability, and performance are welcome.
+
+Fork the repository
+
+Create a feature branch
+
+Commit your changes
+
+Push to your branch
+
+Open a Pull Request
+
+License
 
 Proprietary software. All rights reserved.
 
-## 🔗 Links
-
-- **Lovable Project**: [Open in Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID)
-- **Documentation**: See `/docs` folder
-- **Support**: Contact via in-app feedback
-
----
-
-Built with ❤️ using [Lovable](https://lovable.dev)
+Unauthorized distribution or reproduction of this software is prohibited.
