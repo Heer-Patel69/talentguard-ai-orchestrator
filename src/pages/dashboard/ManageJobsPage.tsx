@@ -4,9 +4,12 @@ import { motion } from "framer-motion";
 import { GlassCard } from "@/components/ui/glass-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useRealtimeJobs } from "@/hooks/useRealtimeJobs";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { BulkActionsBar } from "@/components/jobs/BulkActionsBar";
 import {
   Select,
   SelectContent,
@@ -67,6 +70,9 @@ export default function ManageJobsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [selectedJobs, setSelectedJobs] = useState<string[]>([]);
+  const [deleteJobId, setDeleteJobId] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const { user } = useAuth();
   const { toast } = useToast();
 
@@ -155,8 +161,7 @@ export default function ManageJobsPage() {
   };
 
   const deleteJob = async (jobId: string) => {
-    if (!confirm("Are you sure you want to delete this job?")) return;
-
+    setIsDeleting(true);
     try {
       const { error } = await supabase
         .from("jobs")
@@ -166,6 +171,7 @@ export default function ManageJobsPage() {
       if (error) throw error;
 
       setJobs(jobs.filter(job => job.id !== jobId));
+      setDeleteJobId(null);
 
       toast({
         title: "Job deleted",
@@ -178,6 +184,26 @@ export default function ManageJobsPage() {
         description: "Failed to delete job",
         variant: "destructive",
       });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  // Toggle job selection
+  const toggleJobSelection = (jobId: string) => {
+    setSelectedJobs((prev) =>
+      prev.includes(jobId)
+        ? prev.filter((id) => id !== jobId)
+        : [...prev, jobId]
+    );
+  };
+
+  // Select all visible jobs
+  const toggleSelectAll = () => {
+    if (selectedJobs.length === filteredJobs.length) {
+      setSelectedJobs([]);
+    } else {
+      setSelectedJobs(filteredJobs.map((j) => j.id));
     }
   };
 
@@ -330,6 +356,11 @@ export default function ManageJobsPage() {
               <GlassCard hover className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                 <div className="flex-1">
                   <div className="flex items-start gap-3">
+                    <Checkbox
+                      checked={selectedJobs.includes(job.id)}
+                      onCheckedChange={() => toggleJobSelection(job.id)}
+                      className="mt-3"
+                    />
                     <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
                       <Briefcase className="h-5 w-5 text-primary" />
                     </div>
@@ -421,7 +452,7 @@ export default function ManageJobsPage() {
                         )}
                         <DropdownMenuSeparator />
                         <DropdownMenuItem 
-                          onClick={() => deleteJob(job.id)}
+                          onClick={() => setDeleteJobId(job.id)}
                           className="text-danger focus:text-danger"
                         >
                           <Trash2 className="mr-2 h-4 w-4" />
@@ -436,6 +467,25 @@ export default function ManageJobsPage() {
           ))}
         </div>
       )}
+
+      {/* Bulk Actions Bar */}
+      <BulkActionsBar
+        selectedIds={selectedJobs}
+        onClearSelection={() => setSelectedJobs([])}
+        onActionComplete={fetchJobs}
+      />
+
+      {/* Delete Confirmation Dialog */}
+      <ConfirmDialog
+        open={!!deleteJobId}
+        onOpenChange={(open) => !open && setDeleteJobId(null)}
+        title="Delete Job?"
+        description="This will permanently delete the job and all associated applications. This action cannot be undone."
+        onConfirm={() => deleteJobId && deleteJob(deleteJobId)}
+        confirmText="Delete Job"
+        variant="destructive"
+        isLoading={isDeleting}
+      />
     </div>
   );
 }

@@ -16,6 +16,9 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useJobValidation } from "@/hooks/useJobValidation";
 import { ValidationIndicator, CompletenessScore } from "@/components/jobs/ValidationIndicator";
+import { SalaryInput } from "@/components/jobs/SalaryInput";
+import { JobTemplates, type JobTemplate } from "@/components/jobs/JobTemplates";
+import { useAutoSave } from "@/hooks/useAutoSave";
 import {
   Select,
   SelectContent,
@@ -157,6 +160,30 @@ export default function PostJobPage() {
     experienceLevel: form.watch("experienceLevel"),
   });
 
+  // Auto-save hook
+  const formData = form.watch();
+  const { lastSaved, clearSavedData } = useAutoSave({
+    key: `new_job_${user?.id}`,
+    data: formData,
+    enabled: !!user,
+    debounceMs: 3000,
+    onRestore: (data) => {
+      form.reset(data);
+    },
+  });
+
+  // Handle template selection
+  const handleSelectTemplate = (template: JobTemplate) => {
+    form.setValue("title", template.title);
+    form.setValue("description", template.description);
+    form.setValue("field", template.field);
+    form.setValue("experienceLevel", template.experience_level as any);
+    form.setValue("requiredSkills", template.required_skills);
+    form.setValue("toughnessLevel", template.toughness_level as any);
+    form.setValue("numRounds", template.num_rounds);
+    form.setValue("locationType", template.location_type as any);
+  };
+
   // Fetch existing jobs for duplicate detection
   useEffect(() => {
     async function fetchExistingJobs() {
@@ -281,6 +308,9 @@ export default function PostJobPage() {
 
       if (roundsError) throw roundsError;
 
+      // Clear auto-saved data on successful submit
+      clearSavedData();
+
       toast({
         title: "Job posted successfully!",
         description: "Your job is now live and accepting applications.",
@@ -333,9 +363,31 @@ export default function PostJobPage() {
           <h1 className="text-2xl font-bold">Post a New Job</h1>
           <p className="text-muted-foreground">
             Create a job listing with AI-powered validation
+            {lastSaved && (
+              <span className="text-xs ml-2 text-success">
+                • Auto-saved {lastSaved.toLocaleTimeString()}
+              </span>
+            )}
           </p>
         </div>
         <CompletenessScore score={overallScore} />
+      </div>
+
+      {/* Job Templates */}
+      <div className="mb-6">
+        <JobTemplates
+          onSelectTemplate={handleSelectTemplate}
+          currentJobData={{
+            title: form.watch("title"),
+            description: form.watch("description"),
+            field: form.watch("field"),
+            experience_level: form.watch("experienceLevel"),
+            required_skills: form.watch("requiredSkills"),
+            toughness_level: form.watch("toughnessLevel"),
+            num_rounds: form.watch("numRounds"),
+            location_type: form.watch("locationType"),
+          }}
+        />
       </div>
 
       {/* Progress Steps */}
@@ -594,56 +646,16 @@ export default function PostJobPage() {
                   )}
                 </div>
 
-                {/* Salary Range */}
-                <div className="grid gap-4 md:grid-cols-3">
-                  <FormField
-                    control={form.control}
-                    name="salaryMin"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Min Salary</FormLabel>
-                        <FormControl>
-                          <div className="relative">
-                            <DollarSign className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                            <Input type="number" placeholder="500000" className="pl-10" {...field} />
-                          </div>
-                        </FormControl>
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="salaryMax"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Max Salary</FormLabel>
-                        <FormControl>
-                          <Input type="number" placeholder="1500000" {...field} />
-                        </FormControl>
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="salaryCurrency"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Currency</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="INR">INR (₹)</SelectItem>
-                            <SelectItem value="USD">USD ($)</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </FormItem>
-                    )}
-                  />
-                </div>
+                {/* Salary Range with Validation */}
+                <SalaryInput
+                  minValue={form.watch("salaryMin") || ""}
+                  maxValue={form.watch("salaryMax") || ""}
+                  currency={form.watch("salaryCurrency")}
+                  experienceLevel={form.watch("experienceLevel")}
+                  onMinChange={(v) => form.setValue("salaryMin", v)}
+                  onMaxChange={(v) => form.setValue("salaryMax", v)}
+                  onCurrencyChange={(v) => form.setValue("salaryCurrency", v)}
+                />
 
                 <FormField
                   control={form.control}
