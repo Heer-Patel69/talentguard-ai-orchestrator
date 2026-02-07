@@ -4,7 +4,7 @@ import { motion } from "framer-motion";
 import { GlassCard } from "@/components/ui/glass-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { TrustScoreBadge, RiskMeter } from "@/components/ui/trust-indicators";
+import { ModernCandidateCard } from "@/components/dashboard/ModernCandidateCard";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -14,36 +14,21 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   Users,
   Search,
-  MoreVertical,
-  Eye,
-  FileText,
-  Github,
-  Linkedin,
-  CheckCircle2,
-  XCircle,
-  Clock,
-  AlertTriangle,
   Download,
   UserCheck,
   UserX,
   ChevronRight,
-  Shield,
-  Video,
   Loader2,
+  LayoutGrid,
+  List,
+  FileDown,
 } from "lucide-react";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { Badge } from "@/components/ui/badge";
 
 interface Candidate {
   id: string;
@@ -64,17 +49,6 @@ interface Candidate {
   profileScore: number;
 }
 
-const statusLabels: Record<string, { label: string; color: string; icon: any }> = {
-  applied: { label: "Applied", color: "bg-info/10 text-info", icon: Clock },
-  screening: { label: "Screening", color: "bg-primary/10 text-primary", icon: Eye },
-  interviewing: { label: "Interviewing", color: "bg-warning/10 text-warning", icon: Video },
-  shortlisted: { label: "Shortlisted", color: "bg-success/10 text-success", icon: CheckCircle2 },
-  rejected: { label: "Rejected", color: "bg-danger/10 text-danger", icon: XCircle },
-  flagged: { label: "Flagged", color: "bg-danger/10 text-danger", icon: AlertTriangle },
-  hired: { label: "Hired", color: "bg-success/10 text-success", icon: UserCheck },
-  completed: { label: "Completed", color: "bg-primary/10 text-primary", icon: CheckCircle2 },
-};
-
 const getRoundName = (round: number) => {
   const rounds = ["Screening", "Technical Round", "System Design", "Behavioral", "Final Round", "Completed"];
   return rounds[Math.min(round - 1, rounds.length - 1)] || "Screening";
@@ -88,6 +62,7 @@ export default function CandidatesPage() {
   const [jobFilter, setJobFilter] = useState<string>("all");
   const [selectedCandidates, setSelectedCandidates] = useState<string[]>([]);
   const [jobs, setJobs] = useState<{ id: string; title: string }[]>([]);
+  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const { user } = useAuth();
   const { toast } = useToast();
 
@@ -99,7 +74,6 @@ export default function CandidatesPage() {
 
   const fetchCandidates = async () => {
     try {
-      // Get interviewer's jobs
       const { data: jobsData } = await supabase
         .from("jobs")
         .select("id, title")
@@ -114,7 +88,6 @@ export default function CandidatesPage() {
         return;
       }
 
-      // Get applications for those jobs
       const { data: applications, error } = await supabase
         .from("applications")
         .select(`
@@ -134,7 +107,6 @@ export default function CandidatesPage() {
 
       if (error) throw error;
 
-      // Get candidate profiles
       const candidateIds = [...new Set((applications || []).map(a => a.candidate_id))];
       
       const { data: profiles } = await supabase
@@ -157,7 +129,7 @@ export default function CandidatesPage() {
 
         return {
           id: app.id,
-          name: profile?.full_name || "Unknown",
+          name: profile?.full_name || "Unknown Candidate",
           email: profile?.email || "",
           phone: candProfile?.phone_number || "",
           job: (app.jobs as any)?.title || "Unknown",
@@ -198,27 +170,11 @@ export default function CandidatesPage() {
     return matchesSearch && matchesStatus && matchesJob;
   });
 
-  const toggleSelectAll = () => {
-    if (selectedCandidates.length === filteredCandidates.length) {
-      setSelectedCandidates([]);
-    } else {
-      setSelectedCandidates(filteredCandidates.map(c => c.id));
-    }
-  };
-
-  const toggleSelect = (id: string) => {
-    if (selectedCandidates.includes(id)) {
-      setSelectedCandidates(selectedCandidates.filter(c => c !== id));
-    } else {
-      setSelectedCandidates([...selectedCandidates, id]);
-    }
-  };
-
-  const updateApplicationStatus = async (applicationId: string, newStatus: "applied" | "hired" | "interviewing" | "rejected" | "screening" | "shortlisted" | "withdrawn") => {
+  const updateApplicationStatus = async (applicationId: string, newStatus: string) => {
     try {
       const { error } = await supabase
         .from("applications")
-        .update({ status: newStatus })
+        .update({ status: newStatus as any })
         .eq("id", applicationId);
 
       if (error) throw error;
@@ -268,6 +224,14 @@ export default function CandidatesPage() {
     }
   };
 
+  const stats = [
+    { label: "Total", value: candidates.length, color: "text-foreground" },
+    { label: "Interviewing", value: candidates.filter(c => c.status === "interviewing").length, color: "text-warning" },
+    { label: "Shortlisted", value: candidates.filter(c => c.status === "shortlisted").length, color: "text-success" },
+    { label: "Flagged", value: candidates.filter(c => c.status === "flagged" || c.fraudFlags > 0).length, color: "text-danger" },
+    { label: "Rejected", value: candidates.filter(c => c.status === "rejected").length, color: "text-muted-foreground" },
+  ];
+
   if (isLoading) {
     return (
       <div className="flex h-64 items-center justify-center">
@@ -281,16 +245,16 @@ export default function CandidatesPage() {
       {/* Header */}
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Candidate Review</h1>
+          <h1 className="text-2xl font-bold bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text">
+            Candidate Review
+          </h1>
           <p className="text-muted-foreground">
             Review and manage all candidate applications
           </p>
         </div>
         {selectedCandidates.length > 0 && (
           <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground">
-              {selectedCandidates.length} selected
-            </span>
+            <Badge variant="secondary">{selectedCandidates.length} selected</Badge>
             <Button variant="outline" size="sm" onClick={() => bulkAction("shortlisted")}>
               <UserCheck className="mr-1 h-3 w-3" />
               Shortlist
@@ -299,27 +263,24 @@ export default function CandidatesPage() {
               <UserX className="mr-1 h-3 w-3" />
               Reject
             </Button>
-            <Button variant="outline" size="sm" onClick={() => bulkAction("moved to next round")}>
-              <ChevronRight className="mr-1 h-3 w-3" />
-              Next Round
-            </Button>
           </div>
         )}
       </div>
 
       {/* Stats */}
       <div className="grid gap-4 md:grid-cols-5">
-        {[
-          { label: "Total", value: candidates.length, color: "text-foreground" },
-          { label: "Interviewing", value: candidates.filter(c => c.status === "interviewing").length, color: "text-warning" },
-          { label: "Shortlisted", value: candidates.filter(c => c.status === "shortlisted").length, color: "text-success" },
-          { label: "Flagged", value: candidates.filter(c => c.status === "flagged" || c.fraudFlags > 0).length, color: "text-danger" },
-          { label: "Rejected", value: candidates.filter(c => c.status === "rejected").length, color: "text-muted-foreground" },
-        ].map((stat) => (
-          <GlassCard key={stat.label} className="text-center">
-            <div className={cn("text-2xl font-bold", stat.color)}>{stat.value}</div>
-            <div className="text-sm text-muted-foreground">{stat.label}</div>
-          </GlassCard>
+        {stats.map((stat, index) => (
+          <motion.div
+            key={stat.label}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: index * 0.05 }}
+          >
+            <GlassCard className="text-center py-4">
+              <div className={cn("text-3xl font-bold", stat.color)}>{stat.value}</div>
+              <div className="text-sm text-muted-foreground">{stat.label}</div>
+            </GlassCard>
+          </motion.div>
         ))}
       </div>
 
@@ -345,7 +306,6 @@ export default function CandidatesPage() {
             <SelectItem value="interviewing">Interviewing</SelectItem>
             <SelectItem value="shortlisted">Shortlisted</SelectItem>
             <SelectItem value="rejected">Rejected</SelectItem>
-            <SelectItem value="flagged">Flagged</SelectItem>
           </SelectContent>
         </Select>
         <Select value={jobFilter} onValueChange={setJobFilter}>
@@ -359,13 +319,31 @@ export default function CandidatesPage() {
             ))}
           </SelectContent>
         </Select>
+        <div className="flex items-center gap-1 border rounded-lg p-1">
+          <Button
+            variant={viewMode === "grid" ? "secondary" : "ghost"}
+            size="sm"
+            onClick={() => setViewMode("grid")}
+            className="h-8 w-8 p-0"
+          >
+            <LayoutGrid className="h-4 w-4" />
+          </Button>
+          <Button
+            variant={viewMode === "list" ? "secondary" : "ghost"}
+            size="sm"
+            onClick={() => setViewMode("list")}
+            className="h-8 w-8 p-0"
+          >
+            <List className="h-4 w-4" />
+          </Button>
+        </div>
         <Button variant="outline">
-          <Download className="mr-2 h-4 w-4" />
+          <FileDown className="mr-2 h-4 w-4" />
           Export
         </Button>
       </div>
 
-      {/* Candidates Table */}
+      {/* Candidates */}
       {candidates.length === 0 ? (
         <GlassCard className="py-12 text-center">
           <Users className="mx-auto h-12 w-12 text-muted-foreground" />
@@ -378,162 +356,30 @@ export default function CandidatesPage() {
           </Button>
         </GlassCard>
       ) : (
-        <GlassCard className="overflow-hidden p-0">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="border-b border-border bg-secondary/50">
-                <tr>
-                  <th className="px-4 py-3 text-left">
-                    <Checkbox
-                      checked={selectedCandidates.length === filteredCandidates.length && filteredCandidates.length > 0}
-                      onCheckedChange={toggleSelectAll}
-                    />
-                  </th>
-                  <th className="px-4 py-3 text-left text-sm font-medium">Candidate</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium">Job</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium">Stage</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium">Status</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium">Score</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium">Risk</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {filteredCandidates.map((candidate) => {
-                  const statusInfo = statusLabels[candidate.status];
-                  const StatusIcon = statusInfo?.icon || Clock;
-
-                  return (
-                    <motion.tr
-                      key={candidate.id}
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      className="hover:bg-secondary/30"
-                    >
-                      <td className="px-4 py-3">
-                        <Checkbox
-                          checked={selectedCandidates.includes(candidate.id)}
-                          onCheckedChange={() => toggleSelect(candidate.id)}
-                        />
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-3">
-                          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-primary text-sm font-bold">
-                            {candidate.name.split(" ").map(n => n[0]).join("")}
-                          </div>
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <span className="font-medium">{candidate.name}</span>
-                              {candidate.verificationStatus === "verified" && (
-                                <Shield className="h-3 w-3 text-success" />
-                              )}
-                              {candidate.profileScore > 0 && (
-                                <span className="text-xs bg-primary/10 text-primary px-1.5 py-0.5 rounded">
-                                  {candidate.profileScore}pts
-                                </span>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                              <span>{candidate.email}</span>
-                              {candidate.githubUrl && (
-                                <a href={candidate.githubUrl} target="_blank" rel="noopener noreferrer">
-                                  <Github className="h-3 w-3 hover:text-foreground" />
-                                </a>
-                              )}
-                              {candidate.linkedinUrl && (
-                                <a href={candidate.linkedinUrl} target="_blank" rel="noopener noreferrer">
-                                  <Linkedin className="h-3 w-3 hover:text-foreground" />
-                                </a>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className="text-sm">{candidate.job}</span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className="text-sm">{candidate.stage}</span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className={cn(
-                          "inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-medium",
-                          statusInfo?.color
-                        )}>
-                          <StatusIcon className="h-3 w-3" />
-                          {statusInfo?.label}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">
-                        {candidate.score > 0 ? (
-                          <TrustScoreBadge score={candidate.score} size="sm" />
-                        ) : (
-                          <span className="text-sm text-muted-foreground">—</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="w-20">
-                          <RiskMeter value={candidate.fraudFlags * 20} />
-                          {candidate.fraudFlags > 0 && (
-                            <span className="text-xs text-danger">{candidate.fraudFlags} flags</span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-2">
-                          <Button variant="ghost" size="sm" asChild>
-                            <Link to={`/dashboard/candidates/${candidate.id}`}>
-                              <Eye className="h-4 w-4" />
-                            </Link>
-                          </Button>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon">
-                                <MoreVertical className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem asChild>
-                                <Link to={`/dashboard/candidates/${candidate.id}`}>
-                                  <FileText className="mr-2 h-4 w-4" />
-                                  View Full Report
-                                </Link>
-                              </DropdownMenuItem>
-                              <DropdownMenuItem>
-                                <Video className="mr-2 h-4 w-4" />
-                                Watch Recording
-                              </DropdownMenuItem>
-                              <DropdownMenuItem>
-                                <Download className="mr-2 h-4 w-4" />
-                                Download Resume
-                              </DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem onClick={() => updateApplicationStatus(candidate.id, "shortlisted")}>
-                                <UserCheck className="mr-2 h-4 w-4" />
-                                Shortlist
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => updateApplicationStatus(candidate.id, "interviewing")}>
-                                <ChevronRight className="mr-2 h-4 w-4" />
-                                Move to Next Round
-                              </DropdownMenuItem>
-                              <DropdownMenuItem 
-                                className="text-danger"
-                                onClick={() => updateApplicationStatus(candidate.id, "rejected")}
-                              >
-                                <UserX className="mr-2 h-4 w-4" />
-                                Reject
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </div>
-                      </td>
-                    </motion.tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </GlassCard>
+        <div className={cn(
+          viewMode === "grid" 
+            ? "grid gap-4 md:grid-cols-2 xl:grid-cols-3" 
+            : "space-y-3"
+        )}>
+          {filteredCandidates.map((candidate, index) => (
+            <ModernCandidateCard
+              key={candidate.id}
+              id={candidate.id}
+              name={candidate.name}
+              email={candidate.email}
+              job={candidate.job}
+              stage={candidate.stage}
+              status={candidate.status}
+              score={candidate.score}
+              profileScore={candidate.profileScore}
+              verificationStatus={candidate.verificationStatus}
+              githubUrl={candidate.githubUrl}
+              linkedinUrl={candidate.linkedinUrl}
+              onStatusChange={updateApplicationStatus}
+              delay={index * 0.03}
+            />
+          ))}
+        </div>
       )}
     </div>
   );
