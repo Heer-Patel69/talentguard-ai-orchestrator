@@ -256,48 +256,94 @@ export default function MCQAssessmentPage() {
     const topics = ["Arrays", "Linked Lists", "Trees", "Graphs", "Dynamic Programming", "Sorting", "Searching"];
     const difficulties: MCQQuestion["difficulty"][] = ["easy", "medium", "hard", "expert"];
 
-    return Array.from({ length: count }, (_, i) => ({
-      id: `q-${i + 1}`,
-      question: getSampleQuestion(i),
-      options: getSampleOptions(i),
-      type: i % 5 === 0 ? "multiple" : "single",
-      difficulty: difficulties[Math.min(Math.floor(i / (count / 4)), 3)],
-      topic: topics[i % topics.length],
-      points: Math.floor(i / (count / 4)) + 1,
-      timeLimit: 60 + (Math.floor(i / (count / 4)) * 15),
-    }));
+    return Array.from({ length: count }, (_, i) => {
+      const sampleData = getSampleQuestionData(i);
+      return {
+        id: `q-${i + 1}`,
+        question: sampleData.question,
+        options: sampleData.options,
+        type: i % 5 === 0 ? "multiple" as const : "single" as const,
+        difficulty: difficulties[Math.min(Math.floor(i / (count / 4)), 3)],
+        topic: topics[i % topics.length],
+        points: Math.floor(i / (count / 4)) + 1,
+        timeLimit: 60 + (Math.floor(i / (count / 4)) * 15),
+        // Include correct answer for evaluation
+        correctAnswer: sampleData.correctAnswer,
+        correctAnswers: i % 5 === 0 ? sampleData.correctAnswers : [sampleData.correctAnswer],
+      } as MCQQuestion & { correctAnswer: number; correctAnswers: number[] };
+    });
   };
 
-  const getSampleQuestion = (index: number): string => {
-    const questions = [
-      "What is the time complexity of binary search?",
-      "Which data structure uses LIFO principle?",
-      "What is the space complexity of merge sort?",
-      "In a binary search tree, where is the minimum element located?",
-      "What is the best case time complexity of quicksort?",
-      "Which traversal visits the root node first?",
-      "What is the height of a complete binary tree with n nodes?",
-      "Which algorithm is used to detect a cycle in a linked list?",
-      "What is the time complexity of inserting an element at the beginning of an array?",
-      "Which data structure is used for BFS traversal?",
+  // Sample questions with correct answers
+  const getSampleQuestionData = (index: number): { 
+    question: string; 
+    options: string[]; 
+    correctAnswer: number;
+    correctAnswers: number[];
+  } => {
+    const questionData = [
+      {
+        question: "What is the time complexity of binary search?",
+        options: ["O(1)", "O(log n)", "O(n)", "O(n log n)"],
+        correctAnswer: 1, // O(log n)
+        correctAnswers: [1],
+      },
+      {
+        question: "Which data structure uses LIFO principle?",
+        options: ["Queue", "Stack", "Heap", "Tree"],
+        correctAnswer: 1, // Stack
+        correctAnswers: [1],
+      },
+      {
+        question: "What is the space complexity of merge sort?",
+        options: ["O(1)", "O(n)", "O(log n)", "O(n²)"],
+        correctAnswer: 1, // O(n)
+        correctAnswers: [1],
+      },
+      {
+        question: "In a binary search tree, where is the minimum element located?",
+        options: ["Root node", "Leftmost node", "Rightmost node", "Any leaf node"],
+        correctAnswer: 1, // Leftmost node
+        correctAnswers: [1],
+      },
+      {
+        question: "What is the best case time complexity of quicksort?",
+        options: ["O(n)", "O(n log n)", "O(n²)", "O(log n)"],
+        correctAnswer: 1, // O(n log n)
+        correctAnswers: [1],
+      },
+      {
+        question: "Which traversal visits the root node first?",
+        options: ["Preorder", "Inorder", "Postorder", "Level order"],
+        correctAnswer: 0, // Preorder
+        correctAnswers: [0, 3], // Preorder and Level order both visit root first - for multiple choice
+      },
+      {
+        question: "What is the height of a complete binary tree with n nodes?",
+        options: ["O(n)", "O(log n)", "O(n log n)", "O(1)"],
+        correctAnswer: 1, // O(log n)
+        correctAnswers: [1],
+      },
+      {
+        question: "Which algorithm is used to detect a cycle in a linked list?",
+        options: ["Floyd's algorithm", "Dijkstra's algorithm", "Kruskal's algorithm", "Prim's algorithm"],
+        correctAnswer: 0, // Floyd's algorithm
+        correctAnswers: [0],
+      },
+      {
+        question: "What is the time complexity of inserting an element at the beginning of an array?",
+        options: ["O(1)", "O(n)", "O(log n)", "O(n²)"],
+        correctAnswer: 1, // O(n)
+        correctAnswers: [1],
+      },
+      {
+        question: "Which data structure is used for BFS traversal?",
+        options: ["Stack", "Queue", "Priority Queue", "Deque"],
+        correctAnswer: 1, // Queue
+        correctAnswers: [1],
+      },
     ];
-    return questions[index % questions.length];
-  };
-
-  const getSampleOptions = (index: number): string[] => {
-    const optionSets = [
-      ["O(1)", "O(log n)", "O(n)", "O(n log n)"],
-      ["Queue", "Stack", "Heap", "Tree"],
-      ["O(1)", "O(n)", "O(log n)", "O(n²)"],
-      ["Root node", "Leftmost node", "Rightmost node", "Any leaf node"],
-      ["O(n)", "O(n log n)", "O(n²)", "O(log n)"],
-      ["Preorder", "Inorder", "Postorder", "Level order"],
-      ["O(n)", "O(log n)", "O(n log n)", "O(1)"],
-      ["Floyd's algorithm", "Dijkstra's algorithm", "Kruskal's algorithm", "Prim's algorithm"],
-      ["O(1)", "O(n)", "O(log n)", "O(n²)"],
-      ["Stack", "Queue", "Priority Queue", "Deque"],
-    ];
-    return optionSets[index % optionSets.length];
+    return questionData[index % questionData.length];
   };
 
   const startAssessment = () => {
@@ -378,20 +424,45 @@ export default function MCQAssessmentPage() {
 
     try {
       // Build response data with actual answers
-      const responseData = questions.map((q) => {
+      const responseData = questions.map((q, qIndex) => {
         const answer = answers.get(q.id);
-        // Get correct answer from question - handle different formats
         const questionAny = q as any;
-        const correctAnswers: number[] = questionAny.correctAnswers 
-          || (questionAny.correctAnswer !== undefined ? [questionAny.correctAnswer] : null)
-          || (questionAny.correct_answer !== undefined ? [questionAny.correct_answer] : null)
-          || [1]; // Fallback
+        
+        // Get correct answer(s) - handle various storage formats
+        let correctAnswers: number[] = [];
+        if (questionAny.correctAnswers && Array.isArray(questionAny.correctAnswers)) {
+          correctAnswers = questionAny.correctAnswers;
+        } else if (questionAny.correctAnswer !== undefined) {
+          correctAnswers = [questionAny.correctAnswer];
+        } else if (questionAny.correct_answer !== undefined) {
+          correctAnswers = [questionAny.correct_answer];
+        } else if (questionAny.correct_option !== undefined) {
+          correctAnswers = [questionAny.correct_option];
+        } else {
+          // Default fallback - for sample questions, option B (index 1) is typically correct
+          correctAnswers = [1];
+        }
         
         const selectedOptions = answer?.selectedOptions || [];
         
-        // Check if any selected option is correct
-        const isCorrect = selectedOptions.length > 0 && 
-          selectedOptions.some(opt => correctAnswers.includes(opt));
+        // More robust correctness check:
+        // - For single choice: the selected option must be in correctAnswers
+        // - For multiple choice: all correct answers must be selected and no incorrect ones
+        let isCorrect = false;
+        if (selectedOptions.length > 0) {
+          if (q.type === "multiple") {
+            // For multiple choice, check exact match
+            const sortedSelected = [...selectedOptions].sort();
+            const sortedCorrect = [...correctAnswers].sort();
+            isCorrect = sortedSelected.length === sortedCorrect.length &&
+              sortedSelected.every((opt, idx) => opt === sortedCorrect[idx]);
+          } else {
+            // For single choice, any selected option that's in correct answers counts
+            isCorrect = selectedOptions.some(opt => correctAnswers.includes(opt));
+          }
+        }
+        
+        console.log(`[MCQ] Q${qIndex + 1}: selected=${JSON.stringify(selectedOptions)}, correct=${JSON.stringify(correctAnswers)}, isCorrect=${isCorrect}`);
         
         return {
           questionId: q.id,
@@ -430,6 +501,8 @@ export default function MCQAssessmentPage() {
       const score = Math.round((correct / questions.length) * 100);
       const passingScore = jobConfig?.job?.round_config?.mcq?.passing_score || 60;
       const passed = score >= passingScore;
+      
+      console.log(`[MCQ] Final: ${correct}/${questions.length} correct, score=${score}%, passing=${passingScore}%, passed=${passed}`);
 
       // Save results to database
       if (applicationId) {
@@ -588,19 +661,30 @@ export default function MCQAssessmentPage() {
     );
   }
 
+  // Get next round info - after passing, advance to next round number
+  const actualNextRoundNumber = results?.score && results.score >= (jobConfig?.job?.round_config?.mcq?.passing_score || 60) 
+    ? currentRoundNumber + 1 
+    : currentRoundNumber;
+  
+  // Find next round from job rounds
+  const nextRoundFromConfig = jobConfig?.rounds?.find(r => r.round_number === actualNextRoundNumber);
+  
   // Completed screen - use new component
   if (status === "completed" && results) {
+    const configuredPassingScore = jobConfig?.job?.round_config?.mcq?.passing_score || 60;
+    const hasNextRound = results.score >= configuredPassingScore && nextRoundFromConfig;
+    
     return (
       <AssessmentComplete
         results={results}
         applicationId={applicationId}
-        nextRound={nextRound ? {
-          round_number: nextRound.round_number,
-          round_type: nextRound.round_type,
-          duration_minutes: nextRound.duration_minutes,
+        nextRound={hasNextRound ? {
+          round_number: nextRoundFromConfig.round_number,
+          round_type: nextRoundFromConfig.round_type,
+          duration_minutes: nextRoundFromConfig.duration_minutes,
         } : null}
         roundType="mcq"
-        passingScore={60}
+        passingScore={configuredPassingScore}
       />
     );
   }
