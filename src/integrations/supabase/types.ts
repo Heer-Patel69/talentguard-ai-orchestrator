@@ -987,36 +987,57 @@ export type Database = {
       interview_recordings: {
         Row: {
           application_id: string
+          archived_at: string | null
           audio_url: string | null
           code_submissions: Json | null
           created_at: string
+          downloaded_at: string | null
+          downloaded_by: string | null
           duration_minutes: number | null
           fraud_flags: Json | null
           id: string
+          interviewer_id: string | null
+          status: string | null
           transcript: Json | null
           video_url: string | null
+          viewed_at: string | null
+          viewed_by: string | null
         }
         Insert: {
           application_id: string
+          archived_at?: string | null
           audio_url?: string | null
           code_submissions?: Json | null
           created_at?: string
+          downloaded_at?: string | null
+          downloaded_by?: string | null
           duration_minutes?: number | null
           fraud_flags?: Json | null
           id?: string
+          interviewer_id?: string | null
+          status?: string | null
           transcript?: Json | null
           video_url?: string | null
+          viewed_at?: string | null
+          viewed_by?: string | null
         }
         Update: {
           application_id?: string
+          archived_at?: string | null
           audio_url?: string | null
           code_submissions?: Json | null
           created_at?: string
+          downloaded_at?: string | null
+          downloaded_by?: string | null
           duration_minutes?: number | null
           fraud_flags?: Json | null
           id?: string
+          interviewer_id?: string | null
+          status?: string | null
           transcript?: Json | null
           video_url?: string | null
+          viewed_at?: string | null
+          viewed_by?: string | null
         }
         Relationships: [
           {
@@ -1434,6 +1455,63 @@ export type Database = {
             columns: ["application_id"]
             isOneToOne: false
             referencedRelation: "applications"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      proctoring_logs: {
+        Row: {
+          application_id: string | null
+          candidate_id: string
+          created_at: string
+          description: string | null
+          event_type: string
+          id: string
+          metadata: Json | null
+          recording_id: string | null
+          severity: string
+          timestamp_in_video: number | null
+          trust_score_impact: number | null
+        }
+        Insert: {
+          application_id?: string | null
+          candidate_id: string
+          created_at?: string
+          description?: string | null
+          event_type: string
+          id?: string
+          metadata?: Json | null
+          recording_id?: string | null
+          severity?: string
+          timestamp_in_video?: number | null
+          trust_score_impact?: number | null
+        }
+        Update: {
+          application_id?: string | null
+          candidate_id?: string
+          created_at?: string
+          description?: string | null
+          event_type?: string
+          id?: string
+          metadata?: Json | null
+          recording_id?: string | null
+          severity?: string
+          timestamp_in_video?: number | null
+          trust_score_impact?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "proctoring_logs_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "applications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "proctoring_logs_recording_id_fkey"
+            columns: ["recording_id"]
+            isOneToOne: false
+            referencedRelation: "interview_recordings"
             referencedColumns: ["id"]
           },
         ]

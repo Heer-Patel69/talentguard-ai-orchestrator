@@ -7,6 +7,7 @@ import { TrustScoreBadge } from "@/components/ui/trust-indicators";
 import { CodePlayback } from "@/components/report/CodePlayback";
 import { InterviewTranscript } from "@/components/report/InterviewTranscript";
 import { ProctorEvents } from "@/components/report/ProctorEvents";
+import { InterviewRecordingViewer } from "@/components/report/InterviewRecordingViewer";
 import {
   CandidateScoreSummary,
   RoundScoreCard,
@@ -449,8 +450,9 @@ export default function InterviewerCandidateReportPage() {
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-5 lg:w-auto lg:inline-flex">
+        <TabsList className="grid w-full grid-cols-6 lg:w-auto lg:inline-flex">
           <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="recording">Recording</TabsTrigger>
           <TabsTrigger value="rounds">Round Scores</TabsTrigger>
           <TabsTrigger value="questions">Questions</TabsTrigger>
           <TabsTrigger value="transcript">Transcript</TabsTrigger>
@@ -470,6 +472,16 @@ export default function InterviewerCandidateReportPage() {
               <ProctorEvents events={mockProctorEvents} />
             </div>
           </div>
+        </TabsContent>
+
+        {/* Recording Tab */}
+        <TabsContent value="recording" className="mt-6">
+          {id && candidateInfo && (
+            <InterviewRecordingViewer
+              applicationId={id}
+              candidateName={candidateInfo.name}
+            />
+          )}
         </TabsContent>
 
         {/* Round Scores Tab */}
