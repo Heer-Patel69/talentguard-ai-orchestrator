@@ -75,6 +75,39 @@ export default function CandidatesPage() {
   useEffect(() => {
     if (user) {
       fetchCandidates();
+      
+      // Set up realtime subscription for applications updates
+      const channel = supabase
+        .channel('candidates-realtime')
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'applications',
+          },
+          () => {
+            // Refetch on any application changes
+            fetchCandidates();
+          }
+        )
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'candidate_scores',
+          },
+          () => {
+            // Refetch when scores are updated
+            fetchCandidates();
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
     }
   }, [user]);
 
