@@ -307,20 +307,20 @@ export default function CandidatesPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Header */}
-      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+      <div className="flex flex-col gap-3 sm:gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-2xl font-bold bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text">
+          <h1 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text">
             Candidate Review
           </h1>
-          <p className="text-muted-foreground">
-            Review and manage all candidate applications
+          <p className="text-sm text-muted-foreground">
+            Review and manage applications
           </p>
         </div>
         {selectedCandidates.length > 0 && (
-          <div className="flex items-center gap-2">
-            <Badge variant="secondary">{selectedCandidates.length} selected</Badge>
+          <div className="flex items-center gap-2 flex-wrap">
+            <Badge variant="secondary" className="text-xs">{selectedCandidates.length} selected</Badge>
             <Button variant="outline" size="sm" onClick={() => bulkAction("shortlisted")}>
               <UserCheck className="mr-1 h-3 w-3" />
               Shortlist
@@ -333,26 +333,28 @@ export default function CandidatesPage() {
         )}
       </div>
 
-      {/* Stats */}
-      <div className="grid gap-4 md:grid-cols-5">
+      {/* Stats - Horizontal scrollable on mobile */}
+      <div className="flex gap-2 sm:gap-4 overflow-x-auto pb-2 sm:pb-0 sm:grid sm:grid-cols-5 scrollbar-hide">
         {stats.map((stat, index) => (
           <motion.div
             key={stat.label}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: index * 0.05 }}
+            className="shrink-0 w-20 sm:w-auto"
           >
-            <GlassCard className="text-center py-4">
-              <div className={cn("text-3xl font-bold", stat.color)}>{stat.value}</div>
-              <div className="text-sm text-muted-foreground">{stat.label}</div>
+            <GlassCard className="text-center py-2 sm:py-4 px-2 sm:px-4">
+              <div className={cn("text-xl sm:text-3xl font-bold", stat.color)}>{stat.value}</div>
+              <div className="text-[10px] sm:text-sm text-muted-foreground truncate">{stat.label}</div>
             </GlassCard>
           </motion.div>
         ))}
       </div>
 
       {/* Filters */}
-      <div className="flex flex-col gap-4 md:flex-row md:items-center">
-        <div className="relative flex-1">
+      <div className="flex flex-col gap-2 sm:gap-4">
+        {/* Search - Full width on mobile */}
+        <div className="relative w-full">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             placeholder="Search candidates..."
@@ -361,61 +363,65 @@ export default function CandidatesPage() {
             className="pl-9"
           />
         </div>
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-40">
-            <SelectValue placeholder="Status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Status</SelectItem>
-            <SelectItem value="applied">Applied</SelectItem>
-            <SelectItem value="screening">Screening</SelectItem>
-            <SelectItem value="interviewing">Interviewing</SelectItem>
-            <SelectItem value="shortlisted">Shortlisted</SelectItem>
-            <SelectItem value="rejected">Rejected</SelectItem>
-          </SelectContent>
-        </Select>
-        <Select value={jobFilter} onValueChange={setJobFilter}>
-          <SelectTrigger className="w-48">
-            <SelectValue placeholder="Job" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Jobs</SelectItem>
-            {jobs.map(job => (
-              <SelectItem key={job.id} value={job.id}>{job.title}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <div className="flex items-center gap-1 border rounded-lg p-1">
-          <Button
-            variant={viewMode === "grid" ? "secondary" : "ghost"}
-            size="sm"
-            onClick={() => setViewMode("grid")}
-            className="h-8 w-8 p-0"
-          >
-            <LayoutGrid className="h-4 w-4" />
-          </Button>
-          <Button
-            variant={viewMode === "list" ? "secondary" : "ghost"}
-            size="sm"
-            onClick={() => setViewMode("list")}
-            className="h-8 w-8 p-0"
-          >
-            <List className="h-4 w-4" />
+        
+        {/* Filter controls */}
+        <div className="flex flex-wrap gap-2 items-center">
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-[120px] sm:w-40 h-9 text-xs sm:text-sm">
+              <SelectValue placeholder="Status" />
+            </SelectTrigger>
+            <SelectContent className="bg-popover z-50">
+              <SelectItem value="all">All Status</SelectItem>
+              <SelectItem value="applied">Applied</SelectItem>
+              <SelectItem value="screening">Screening</SelectItem>
+              <SelectItem value="interviewing">Interviewing</SelectItem>
+              <SelectItem value="shortlisted">Shortlisted</SelectItem>
+              <SelectItem value="rejected">Rejected</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={jobFilter} onValueChange={setJobFilter}>
+            <SelectTrigger className="w-[140px] sm:w-48 h-9 text-xs sm:text-sm">
+              <SelectValue placeholder="Job" />
+            </SelectTrigger>
+            <SelectContent className="bg-popover z-50">
+              <SelectItem value="all">All Jobs</SelectItem>
+              {jobs.map(job => (
+                <SelectItem key={job.id} value={job.id}>{job.title}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <div className="flex items-center gap-1 border rounded-lg p-1 ml-auto">
+            <Button
+              variant={viewMode === "grid" ? "secondary" : "ghost"}
+              size="sm"
+              onClick={() => setViewMode("grid")}
+              className="h-7 w-7 sm:h-8 sm:w-8 p-0"
+            >
+              <LayoutGrid className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+            </Button>
+            <Button
+              variant={viewMode === "list" ? "secondary" : "ghost"}
+              size="sm"
+              onClick={() => setViewMode("list")}
+              className="h-7 w-7 sm:h-8 sm:w-8 p-0"
+            >
+              <List className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+            </Button>
+          </div>
+          <Button variant="outline" size="sm" className="h-9 hidden sm:flex">
+            <FileDown className="mr-2 h-4 w-4" />
+            Export
           </Button>
         </div>
-        <Button variant="outline">
-          <FileDown className="mr-2 h-4 w-4" />
-          Export
-        </Button>
       </div>
 
       {/* Candidates */}
       {candidates.length === 0 ? (
-        <GlassCard className="py-12 text-center">
-          <Users className="mx-auto h-12 w-12 text-muted-foreground" />
-          <h3 className="mt-4 text-lg font-semibold">No candidates yet</h3>
-          <p className="mt-1 text-muted-foreground">
-            Candidates will appear here once they apply to your jobs
+        <GlassCard className="py-8 sm:py-12 text-center">
+          <Users className="mx-auto h-10 w-10 sm:h-12 sm:w-12 text-muted-foreground" />
+          <h3 className="mt-3 sm:mt-4 text-base sm:text-lg font-semibold">No candidates yet</h3>
+          <p className="mt-1 text-sm text-muted-foreground px-4">
+            Candidates will appear here once they apply
           </p>
           <Button variant="outline" className="mt-4" asChild>
             <Link to="/dashboard/jobs/new">Post a Job</Link>
@@ -424,8 +430,8 @@ export default function CandidatesPage() {
       ) : (
         <div className={cn(
           viewMode === "grid" 
-            ? "grid gap-4 md:grid-cols-2 xl:grid-cols-3" 
-            : "space-y-3"
+            ? "grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 xl:grid-cols-3" 
+            : "space-y-2 sm:space-y-3"
         )}>
           {filteredCandidates.map((candidate, index) => (
             <ModernCandidateCard
