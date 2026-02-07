@@ -102,9 +102,23 @@ const formSchema = z.object({
   autoShortlistCount: z.number().min(1).max(100),
   rounds: z.array(z.object({
     roundType: z.enum(["mcq", "coding", "system_design", "behavioral", "live_ai_interview"]),
-    durationMinutes: z.number().min(5).max(180),
+    durationMinutes: z.number().min(1, "Minimum 1 minute").max(180),
     aiGenerateQuestions: z.boolean(),
     customQuestions: z.array(z.string()),
+    // MCQ-specific
+    numQuestions: z.number().min(1).max(100).optional(),
+    passingScore: z.number().min(1).max(100).optional(),
+    negativeMarking: z.boolean().optional(),
+    // Coding-specific
+    numProblems: z.number().min(1).max(10).optional(),
+    allowedLanguages: z.array(z.string()).optional(),
+    // System Design-specific
+    numTopics: z.number().min(1).max(5).optional(),
+    // Behavioral-specific
+    numScenarios: z.number().min(1).max(10).optional(),
+    // AI Interview-specific
+    maxQuestions: z.number().min(1).max(20).optional(),
+    focusAreas: z.array(z.string()).optional(),
   })),
 });
 
@@ -140,9 +154,9 @@ export default function PostJobPage() {
       autoShortlistEnabled: false,
       autoShortlistCount: 10,
       rounds: [
-        { roundType: "mcq", durationMinutes: 30, aiGenerateQuestions: true, customQuestions: [] },
-        { roundType: "coding", durationMinutes: 60, aiGenerateQuestions: true, customQuestions: [] },
-        { roundType: "behavioral", durationMinutes: 30, aiGenerateQuestions: true, customQuestions: [] },
+        { roundType: "mcq", durationMinutes: 30, aiGenerateQuestions: true, customQuestions: [], numQuestions: 25, passingScore: 60, negativeMarking: true },
+        { roundType: "coding", durationMinutes: 60, aiGenerateQuestions: true, customQuestions: [], numProblems: 2, allowedLanguages: ["JavaScript", "Python", "Java"] },
+        { roundType: "behavioral", durationMinutes: 30, aiGenerateQuestions: true, customQuestions: [], numScenarios: 3 },
       ],
     },
   });
@@ -265,6 +279,24 @@ export default function PostJobPage() {
   const onSubmit = async (data: FormData) => {
     setIsLoading(true);
     try {
+      // Build round_config object with all settings
+      const roundConfig: Record<string, any> = {};
+      data.rounds.forEach((round, idx) => {
+        roundConfig[round.roundType] = {
+          duration_minutes: round.durationMinutes,
+          passing_score: round.passingScore || 60,
+          ai_generate: round.aiGenerateQuestions,
+          num_questions: round.numQuestions || 10,
+          num_problems: round.numProblems || 2,
+          num_topics: round.numTopics || 1,
+          num_scenarios: round.numScenarios || 3,
+          max_questions: round.maxQuestions || 5,
+          negative_marking: round.negativeMarking ?? true,
+          allowed_languages: round.allowedLanguages || [],
+          focus_areas: round.focusAreas || [],
+        };
+      });
+
       // Create job
       const { data: jobData, error: jobError } = await supabase
         .from("jobs")
@@ -285,6 +317,7 @@ export default function PostJobPage() {
           application_deadline: data.applicationDeadline || null,
           auto_shortlist_enabled: data.autoShortlistEnabled,
           auto_shortlist_count: data.autoShortlistCount,
+          round_config: roundConfig,
           status: "active",
         })
         .select()
@@ -292,14 +325,14 @@ export default function PostJobPage() {
 
       if (jobError) throw jobError;
 
-      // Create rounds
+      // Create rounds with full config
       const roundsToInsert = data.rounds.map((round, idx) => ({
         job_id: jobData.id,
         round_number: idx + 1,
         round_type: round.roundType,
         duration_minutes: round.durationMinutes,
         ai_generate_questions: round.aiGenerateQuestions,
-        custom_questions: round.customQuestions,
+        custom_questions: round.customQuestions.length > 0 ? round.customQuestions : null,
       }));
 
       const { error: roundsError } = await supabase
@@ -776,7 +809,9 @@ export default function PostJobPage() {
                 {/* Round Configuration */}
                 <div className="space-y-4">
                   <Label>Round Configuration</Label>
-                  {roundFields.map((roundField, index) => (
+                  {roundFields.map((roundField, index) => {
+                    const currentRoundType = form.watch(`rounds.${index}.roundType`);
+                    return (
                     <motion.div
                       key={roundField.id}
                       initial={{ opacity: 0, y: 10 }}
@@ -820,22 +855,190 @@ export default function PostJobPage() {
                           name={`rounds.${index}.durationMinutes`}
                           render={({ field }) => (
                             <FormItem>
-                              <FormLabel>Duration (minutes)</FormLabel>
+                              <FormLabel>Duration (min, ≥1)</FormLabel>
                               <FormControl>
                                 <div className="relative">
                                   <Clock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                                   <Input
                                     type="number"
+                                    min={1}
                                     className="pl-10"
                                     {...field}
-                                    onChange={(e) => field.onChange(parseInt(e.target.value))}
+                                    onChange={(e) => field.onChange(Math.max(1, parseInt(e.target.value) || 1))}
                                   />
                                 </div>
                               </FormControl>
+                              <FormMessage />
                             </FormItem>
                           )}
                         />
                       </div>
+
+                      {/* MCQ-specific: Number of Questions */}
+                      {currentRoundType === "mcq" && (
+                        <div className="mt-4 grid gap-4 md:grid-cols-3 p-4 bg-secondary/30 rounded-lg">
+                          <FormField
+                            control={form.control}
+                            name={`rounds.${index}.numQuestions`}
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Number of Questions (≥1)</FormLabel>
+                                <FormControl>
+                                  <Input
+                                    type="number"
+                                    min={1}
+                                    max={100}
+                                    {...field}
+                                    value={field.value || 25}
+                                    onChange={(e) => field.onChange(Math.max(1, parseInt(e.target.value) || 1))}
+                                  />
+                                </FormControl>
+                                <FormDescription>Questions to show during assessment</FormDescription>
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={form.control}
+                            name={`rounds.${index}.passingScore`}
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Passing Score (%)</FormLabel>
+                                <FormControl>
+                                  <Input
+                                    type="number"
+                                    min={1}
+                                    max={100}
+                                    {...field}
+                                    value={field.value || 60}
+                                    onChange={(e) => field.onChange(Math.min(100, Math.max(1, parseInt(e.target.value) || 60)))}
+                                  />
+                                </FormControl>
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={form.control}
+                            name={`rounds.${index}.negativeMarking`}
+                            render={({ field }) => (
+                              <FormItem className="flex items-center justify-between">
+                                <div>
+                                  <FormLabel>Negative Marking</FormLabel>
+                                  <FormDescription>Deduct for wrong answers</FormDescription>
+                                </div>
+                                <FormControl>
+                                  <Switch checked={field.value ?? true} onCheckedChange={field.onChange} />
+                                </FormControl>
+                              </FormItem>
+                            )}
+                          />
+                        </div>
+                      )}
+
+                      {/* Coding-specific: Number of Problems */}
+                      {currentRoundType === "coding" && (
+                        <div className="mt-4 p-4 bg-secondary/30 rounded-lg">
+                          <FormField
+                            control={form.control}
+                            name={`rounds.${index}.numProblems`}
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Number of Problems (≥1)</FormLabel>
+                                <FormControl>
+                                  <Input
+                                    type="number"
+                                    min={1}
+                                    max={10}
+                                    className="max-w-[200px]"
+                                    {...field}
+                                    value={field.value || 2}
+                                    onChange={(e) => field.onChange(Math.max(1, parseInt(e.target.value) || 1))}
+                                  />
+                                </FormControl>
+                                <FormDescription>Coding problems to present</FormDescription>
+                              </FormItem>
+                            )}
+                          />
+                        </div>
+                      )}
+
+                      {/* System Design-specific */}
+                      {currentRoundType === "system_design" && (
+                        <div className="mt-4 p-4 bg-secondary/30 rounded-lg">
+                          <FormField
+                            control={form.control}
+                            name={`rounds.${index}.numTopics`}
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Number of Topics (≥1)</FormLabel>
+                                <FormControl>
+                                  <Input
+                                    type="number"
+                                    min={1}
+                                    max={5}
+                                    className="max-w-[200px]"
+                                    {...field}
+                                    value={field.value || 1}
+                                    onChange={(e) => field.onChange(Math.max(1, parseInt(e.target.value) || 1))}
+                                  />
+                                </FormControl>
+                              </FormItem>
+                            )}
+                          />
+                        </div>
+                      )}
+
+                      {/* Behavioral-specific */}
+                      {currentRoundType === "behavioral" && (
+                        <div className="mt-4 p-4 bg-secondary/30 rounded-lg">
+                          <FormField
+                            control={form.control}
+                            name={`rounds.${index}.numScenarios`}
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Number of Scenarios (≥1)</FormLabel>
+                                <FormControl>
+                                  <Input
+                                    type="number"
+                                    min={1}
+                                    max={10}
+                                    className="max-w-[200px]"
+                                    {...field}
+                                    value={field.value || 3}
+                                    onChange={(e) => field.onChange(Math.max(1, parseInt(e.target.value) || 1))}
+                                  />
+                                </FormControl>
+                              </FormItem>
+                            )}
+                          />
+                        </div>
+                      )}
+
+                      {/* AI Interview-specific */}
+                      {currentRoundType === "live_ai_interview" && (
+                        <div className="mt-4 p-4 bg-secondary/30 rounded-lg">
+                          <FormField
+                            control={form.control}
+                            name={`rounds.${index}.maxQuestions`}
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Max Questions (≥1)</FormLabel>
+                                <FormControl>
+                                  <Input
+                                    type="number"
+                                    min={1}
+                                    max={20}
+                                    className="max-w-[200px]"
+                                    {...field}
+                                    value={field.value || 5}
+                                    onChange={(e) => field.onChange(Math.max(1, parseInt(e.target.value) || 1))}
+                                  />
+                                </FormControl>
+                                <FormDescription>AI will adapt based on responses</FormDescription>
+                              </FormItem>
+                            )}
+                          />
+                        </div>
+                      )}
 
                       <div className="mt-4 flex items-center justify-between rounded-lg bg-secondary/50 p-3">
                         <div className="flex items-center gap-2">
@@ -854,7 +1057,7 @@ export default function PostJobPage() {
                         />
                       </div>
                     </motion.div>
-                  ))}
+                  )})}
                 </div>
               </motion.div>
             )}

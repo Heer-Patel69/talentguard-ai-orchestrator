@@ -174,6 +174,15 @@ export default function MCQAssessmentPage() {
       const currentRound = jobConfig?.currentRound;
       const job = jobConfig?.job;
       
+      // Get configured number of questions from round_config
+      let numQuestions = 25; // Default
+      if (job?.round_config && typeof job.round_config === "object") {
+        const rc = job.round_config as any;
+        if (rc.mcq?.num_questions) {
+          numQuestions = rc.mcq.num_questions;
+        }
+      }
+      
       // Check if custom questions exist and AI generation is disabled
       const hasCustomQuestions = currentRound?.custom_questions && 
         Array.isArray(currentRound.custom_questions) && 
@@ -181,8 +190,8 @@ export default function MCQAssessmentPage() {
       const useAI = currentRound?.ai_generate_questions !== false;
 
       if (hasCustomQuestions && !useAI) {
-        // Use company's custom questions
-        const customQuestions = currentRound.custom_questions as any[];
+        // Use company's custom questions - limit to configured count
+        const customQuestions = (currentRound.custom_questions as any[]).slice(0, numQuestions);
         const formattedQuestions: MCQQuestion[] = customQuestions.map((q, i) => ({
           id: `custom-${i}`,
           question: q.question || q,
@@ -199,38 +208,39 @@ export default function MCQAssessmentPage() {
         return;
       }
 
-      // Determine number of questions from round config
-      let numQuestions = 25; // Default
-      if (job?.round_config && typeof job.round_config === "object") {
-        const rc = job.round_config as any;
-        if (rc.mcq?.num_questions) {
-          numQuestions = rc.mcq.num_questions;
-        }
-      }
-
-      // Generate questions via AI
+      // Generate questions via AI - pass configured count
+      console.log(`[MCQ] Loading ${numQuestions} questions for assessment`);
       const { data, error } = await supabase.functions.invoke("generate-mcq-questions", {
         body: {
           applicationId,
           field: job?.field || "Data Structures and Algorithms",
           toughnessLevel: getToughnessNumber(job?.toughness_level || "medium"),
-          numQuestions,
+          numQuestions, // Use configured count
         },
       });
 
       if (error || !data?.questions) {
-        // Use sample questions if AI fails
+        // Use sample questions if AI fails - respect configured count
         const sampleQuestions = generateSampleQuestions(numQuestions, job?.field || "DSA");
         setQuestions(sampleQuestions);
       } else {
-        setQuestions(data.questions);
+        // Limit AI-generated questions to configured count
+        const limitedQuestions = data.questions.slice(0, numQuestions);
+        setQuestions(limitedQuestions);
       }
 
       setQuestionTimeRemaining(60);
       setStatus("ready");
     } catch (error) {
       console.error("Error loading questions:", error);
-      const numQuestions = 10; // Fallback
+      // Get configured count from job config
+      let numQuestions = 10; // Fallback
+      if (jobConfig?.job?.round_config) {
+        const rc = jobConfig.job.round_config as any;
+        if (rc.mcq?.num_questions) {
+          numQuestions = rc.mcq.num_questions;
+        }
+      }
       const sampleQuestions = generateSampleQuestions(numQuestions, "DSA");
       setQuestions(sampleQuestions);
       setStatus("ready");
