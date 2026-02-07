@@ -154,39 +154,46 @@ export default function CandidatesPage() {
         const currentRound = app.current_round || 0;
         
         // Calculate tests completed and passed based on current_round
-        // Round 0 = just applied, Round 1 = passed 1 assessment, etc.
         const testsCompleted = Math.max(0, currentRound);
-        // If still interviewing, passed = completed - 1; if status is shortlisted/hired, passed = completed
         const testsPassed = app.status === 'rejected' 
           ? Math.max(0, testsCompleted - 1) 
           : testsCompleted;
 
-        // Determine name - prioritize profile data, then candidate profile, then email extraction
-        let candidateName = profile?.full_name?.trim();
+        // Determine display name with robust fallback chain
+        let displayName = "";
         
-        // If no name in profiles, check if we can get it from candidate_profiles
-        if (!candidateName && candProfile) {
-          // Some systems store name in phone_number field comments or other places
-          // For now, try email extraction as fallback
+        // 1. First try full_name from profiles table
+        if (profile && profile.full_name && typeof profile.full_name === 'string') {
+          const trimmedName = profile.full_name.trim();
+          if (trimmedName.length > 0) {
+            displayName = trimmedName;
+          }
         }
         
-        if (!candidateName && profile?.email) {
-          // Extract name from email if no full_name - make it more readable
+        // 2. If no name, try to extract from email
+        if (!displayName && profile?.email) {
           const emailName = profile.email.split('@')[0];
           // Handle common email patterns: john.doe, john_doe, johndoe
-          candidateName = emailName
+          displayName = emailName
             .replace(/[._-]/g, ' ')
             .split(' ')
             .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-            .join(' ');
+            .join(' ')
+            .trim();
         }
         
-        // Final check - if still no name, use a more descriptive placeholder
-        const displayName = candidateName && candidateName.length > 0 
-          ? candidateName 
-          : `Applicant #${app.id.slice(0, 6).toUpperCase()}`;
+        // 3. If still no name, try to use phone number
+        if (!displayName && candProfile?.phone_number) {
+          const phone = candProfile.phone_number;
+          displayName = `Candidate (${phone.slice(-4)})`;
+        }
         
-        const hasProfile = !!(profile?.full_name?.trim());
+        // 4. Final fallback - use application ID
+        if (!displayName) {
+          displayName = `Applicant #${app.id.slice(0, 6).toUpperCase()}`;
+        }
+        
+        const hasProfile = !!(profile?.full_name && profile.full_name.trim().length > 0);
 
         return {
           id: app.id,
