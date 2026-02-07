@@ -40,11 +40,14 @@ import {
   Minimize2,
   Mic,
   Zap,
+  Shield,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { GlassCard } from "@/components/ui/glass-card";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
+import { useAntiCheat } from "@/hooks/useAntiCheat";
+import { AntiCheatOverlay, AntiCheatStatusBadge } from "@/components/proctoring";
 
 type InterviewStatus = "preparing" | "in-progress" | "completing" | "completed";
 type InterviewType = "technical" | "system-design" | "behavioral";
@@ -79,7 +82,32 @@ export default function AIInterviewRoomPage() {
   const [workspaceMode, setWorkspaceMode] = useState<WorkspaceMode>(
     interviewType === "system-design" ? "whiteboard" : interviewType === "technical" ? "code" : "conversation"
   );
-  const [isFullscreen, setIsFullscreen] = useState(false);
+  // Anti-cheat system
+  const antiCheat = useAntiCheat({
+    enforceFullscreen: true,
+    maxTabSwitches: 3,
+    maxFocusLoss: 5,
+    blockCopyPaste: true,
+    blockRightClick: true,
+    blockDevTools: true,
+    blockScreenshot: true,
+    autoTerminateOnViolation: false,
+    onEvent: (event) => {
+      // Map to proctoring event format (filter out 'critical' severity for compatibility)
+      const severityMap: Record<string, "low" | "medium" | "high"> = {
+        low: "low",
+        medium: "medium",
+        high: "high",
+        critical: "high", // Map critical to high for compatibility
+      };
+      setProctoringEvents((prev) => [...prev, {
+        type: event.type as any,
+        timestamp: event.timestamp,
+        severity: severityMap[event.severity] || "high",
+        description: event.description,
+      }]);
+    },
+  });
 
   // Timer state
   const [elapsedTime, setElapsedTime] = useState(0);
@@ -94,7 +122,6 @@ export default function AIInterviewRoomPage() {
   // Scores & Proctoring
   const [currentScore, setCurrentScore] = useState(0);
   const [questionCount, setQuestionCount] = useState(0);
-  const [trustScore, setTrustScore] = useState(100);
   const [proctoringEvents, setProctoringEvents] = useState<ProctoringEvent[]>([]);
   
   // Job context for dynamic configuration
@@ -187,6 +214,15 @@ export default function AIInterviewRoomPage() {
     fetchJobContext();
   }, [searchParams]);
 
+  // Start anti-cheat when interview begins
+  useEffect(() => {
+    if (status === "in-progress" && !antiCheat.isActive) {
+      antiCheat.startMonitoring();
+    } else if (status !== "in-progress" && antiCheat.isActive) {
+      antiCheat.stopMonitoring();
+    }
+  }, [status]);
+
   // Start interview timer
   useEffect(() => {
     if (status === "in-progress") {
@@ -209,16 +245,14 @@ export default function AIInterviewRoomPage() {
     };
   }, [status]);
 
-  // Fullscreen handling
+  // Fullscreen handling - now uses anti-cheat system
   const toggleFullscreen = useCallback(() => {
     if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen();
-      setIsFullscreen(true);
+      antiCheat.requestFullscreen();
     } else {
-      document.exitFullscreen();
-      setIsFullscreen(false);
+      antiCheat.exitFullscreen();
     }
-  }, []);
+  }, [antiCheat]);
 
   // Start interview with greeting
   const startInterview = useCallback(async () => {
@@ -584,7 +618,7 @@ export default function AIInterviewRoomPage() {
               </div>
               <div className="flex items-center gap-2 text-sm">
                 <CheckCircle2 className="h-4 w-4 text-success" />
-                <span>Trust Score: {trustScore}%</span>
+                <span>Trust Score: {antiCheat.trustScore}%</span>
               </div>
             </div>
 
@@ -656,7 +690,7 @@ export default function AIInterviewRoomPage() {
             className="h-8 w-8 p-0"
             onClick={toggleFullscreen}
           >
-            {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+            {antiCheat.isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
           </Button>
 
           <Button
@@ -682,10 +716,11 @@ export default function AIInterviewRoomPage() {
             aiSpeaking={aiSpeaking}
             className="flex-1"
           />
-          <ProctoringMonitor
-            isActive={status === "in-progress"}
-            onEvent={handleProctoringEvent}
-            onTrustScoreChange={setTrustScore}
+          {/* Anti-cheat overlay */}
+          <AntiCheatOverlay
+            state={antiCheat}
+            onRequestFullscreen={antiCheat.requestFullscreen}
+            showDetailedStatus={true}
           />
         </div>
 
