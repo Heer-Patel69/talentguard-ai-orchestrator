@@ -266,16 +266,28 @@
     @apply bg-danger/20 text-danger border-danger/30;
   }
 
-  /* Animated Grid Background */
+  /* Animated Grid Background - theme adaptive */
   .grid-bg {
+    background-image: 
+      linear-gradient(to right, hsla(215, 28%, 70%, 0.25) 1px, transparent 1px),
+      linear-gradient(to bottom, hsla(215, 28%, 70%, 0.25) 1px, transparent 1px);
+    background-size: 60px 60px;
+  }
+
+  .dark .grid-bg {
     background-image: 
       linear-gradient(to right, hsla(217, 33%, 17%, 0.3) 1px, transparent 1px),
       linear-gradient(to bottom, hsla(217, 33%, 17%, 0.3) 1px, transparent 1px);
     background-size: 60px 60px;
   }
 
-  /* Dot Pattern */
+  /* Dot Pattern - theme adaptive */
   .dot-pattern {
+    background-image: radial-gradient(circle, hsla(215, 28%, 70%, 0.35) 1px, transparent 1px);
+    background-size: 24px 24px;
+  }
+
+  .dark .dot-pattern {
     background-image: radial-gradient(circle, hsla(217, 33%, 30%, 0.4) 1px, transparent 1px);
     background-size: 24px 24px;
   }

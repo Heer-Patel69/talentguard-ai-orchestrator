@@ -34,14 +34,18 @@ export function Container({
 export function PageBackground({ pattern = "grid" }: { pattern?: "grid" | "dots" }) {
   return (
     <div className="fixed inset-0 -z-10">
-      <div className="absolute inset-0 bg-gradient-surface" />
+      {/* Base background with theme-adaptive gradient */}
+      <div className="absolute inset-0 bg-background" />
+      <div className="absolute inset-0 bg-gradient-to-b from-background via-background to-secondary/20" />
+      {/* Grid/dot pattern overlay */}
       <div
         className={cn(
-          "absolute inset-0 opacity-50",
+          "absolute inset-0 opacity-40 dark:opacity-50",
           pattern === "grid" ? "grid-bg" : "dot-pattern"
         )}
       />
-      <div className="absolute inset-0 hero-glow" />
+      {/* Subtle glow effect */}
+      <div className="absolute inset-0 hero-glow opacity-50 dark:opacity-100" />
     </div>
   );
 }
