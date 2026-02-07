@@ -1,5 +1,4 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import { Resend } from "npm:resend@2.0.0";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 
 const corsHeaders = {
@@ -30,19 +29,16 @@ const handler = async (req: Request): Promise<Response> => {
 
   try {
     const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
+    const body: CandidateNotificationRequest = await req.json();
+    
     if (!RESEND_API_KEY) {
       console.warn("RESEND_API_KEY not configured - email will be simulated");
-      // Return success for development without actually sending email
-      const body: CandidateNotificationRequest = await req.json();
       console.log("Simulated email to:", body.candidateEmail);
       return new Response(
         JSON.stringify({ success: true, simulated: true }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
-
-    const resend = new Resend(RESEND_API_KEY);
-    const body: CandidateNotificationRequest = await req.json();
 
     const {
       candidateEmail,
@@ -72,16 +68,30 @@ const handler = async (req: Request): Promise<Response> => {
       ? `🎉 Congratulations! You've been selected for ${jobTitle}`
       : `Update on your ${jobTitle} application`;
 
-    const emailResponse = await resend.emails.send({
-      from: "HireMinds AI <noreply@hireminds.ai>",
-      to: [candidateEmail],
-      subject,
-      html: emailHtml,
+    // Use Resend API directly via fetch
+    const emailResponse = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${RESEND_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        from: "HireMinds AI <noreply@hireminds.ai>",
+        to: [candidateEmail],
+        subject,
+        html: emailHtml,
+      }),
     });
 
-    console.log("Email sent successfully:", emailResponse);
+    const emailResult = await emailResponse.json();
+    
+    if (!emailResponse.ok) {
+      throw new Error(emailResult.message || "Failed to send email");
+    }
 
-    return new Response(JSON.stringify({ success: true, emailId: emailResponse.id }), {
+    console.log("Email sent successfully:", emailResult);
+
+    return new Response(JSON.stringify({ success: true, emailId: emailResult.id }), {
       status: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
