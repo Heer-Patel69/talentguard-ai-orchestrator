@@ -30,7 +30,9 @@ import {
   FileText,
   ChevronDown,
   Loader2,
+  FileDown,
 } from "lucide-react";
+import { downloadCandidateReport } from "@/lib/pdf-generator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 // Mock data for development (will be replaced with real data)
@@ -307,9 +309,42 @@ export default function InterviewerCandidateReportPage() {
   };
 
   const handleExportPDF = () => {
+    if (!candidateInfo) return;
+
+    downloadCandidateReport({
+      candidateName: candidateInfo.name,
+      email: candidateInfo.email,
+      role: candidateInfo.role,
+      appliedDate: candidateInfo.appliedDate,
+      interviewDate: candidateInfo.interviewDate,
+      experience: candidateInfo.experience,
+      finalScore: candidateScore.final_score,
+      technicalScore: candidateScore.technical_score,
+      communicationScore: candidateScore.communication_score,
+      problemSolvingScore: candidateScore.problem_solving_score,
+      recommendation: candidateScore.recommendation,
+      recommendationReason: candidateScore.recommendation_reason,
+      strengths: candidateScore.strengths,
+      weaknesses: candidateScore.weaknesses,
+      improvements: candidateScore.improvement_suggestions,
+      roundScores: roundScores.map((r) => ({
+        roundNumber: r.round_number,
+        roundType: r.round_number === 1 ? "Technical" : "System Design",
+        score: r.final_score,
+        strengths: r.strengths || [],
+        weaknesses: r.weaknesses || [],
+      })),
+      questionScores: questionScores.map((q) => ({
+        questionNumber: q.question_number,
+        questionText: q.question_text,
+        score: q.weighted_score,
+        aiEvaluation: q.ai_evaluation,
+      })),
+    });
+
     toast({
-      title: "Exporting PDF...",
-      description: "Your report will be downloaded shortly.",
+      title: "PDF Downloaded!",
+      description: "The candidate report has been saved.",
     });
   };
 

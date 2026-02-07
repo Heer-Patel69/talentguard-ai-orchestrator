@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { GlassCard } from "@/components/ui/glass-card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -22,6 +23,8 @@ import {
   Zap,
   Loader2,
   RefreshCw,
+  Sparkles,
+  MapPin,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
@@ -86,7 +89,6 @@ export default function CandidateOverviewPage() {
 
   const fetchData = async () => {
     try {
-      // Fetch candidate profile
       const { data: profileData } = await supabase
         .from("candidate_profiles")
         .select("*")
@@ -100,7 +102,6 @@ export default function CandidateOverviewPage() {
         });
       }
 
-      // Fetch applications
       const { data: applicationsData } = await supabase
         .from("applications")
         .select(`
@@ -118,7 +119,6 @@ export default function CandidateOverviewPage() {
 
       setApplications(applicationsData || []);
 
-      // Fetch job priorities (matched jobs)
       const { data: prioritiesData } = await supabase
         .from("job_priorities")
         .select(`
@@ -141,7 +141,6 @@ export default function CandidateOverviewPage() {
         .order("match_score", { ascending: false })
         .limit(4);
 
-      // If no priorities yet, fetch random active jobs
       if (!prioritiesData || prioritiesData.length === 0) {
         const { data: jobsData } = await supabase
           .from("jobs")
@@ -259,7 +258,9 @@ export default function CandidateOverviewPage() {
       {/* Header */}
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Welcome back!</h1>
+          <h1 className="text-2xl font-bold bg-gradient-to-r from-success to-success/70 bg-clip-text text-transparent">
+            Welcome back!
+          </h1>
           <p className="text-muted-foreground">
             Here's your job search overview
           </p>
@@ -267,9 +268,9 @@ export default function CandidateOverviewPage() {
         <div className="flex items-center gap-3">
           {getVerificationBadge()}
           {profile?.profile_score && profile.profile_score > 0 && (
-            <div className="flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-3 py-1">
-              <Zap className="h-4 w-4 text-primary" />
-              <span className="text-sm font-medium text-primary">{profile.profile_score} Profile Score</span>
+            <div className="flex items-center gap-2 rounded-full border border-success/30 bg-success/10 px-3 py-1">
+              <Sparkles className="h-4 w-4 text-success" />
+              <span className="text-sm font-medium text-success">{profile.profile_score} Profile Score</span>
             </div>
           )}
         </div>
@@ -281,12 +282,14 @@ export default function CandidateOverviewPage() {
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
         >
-          <GlassCard className="border-primary/30 bg-primary/5">
+          <GlassCard className="border-success/30 bg-success/5">
             <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
               <div className="flex items-start gap-3">
-                <Code className="h-5 w-5 text-primary mt-0.5" />
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-success/10">
+                  <Code className="h-5 w-5 text-success" />
+                </div>
                 <div>
-                  <h3 className="font-semibold text-primary">GitHub Profile Analyzed</h3>
+                  <h3 className="font-semibold text-success">GitHub Profile Analyzed</h3>
                   <p className="text-sm text-muted-foreground">
                     {profile.github_analysis.repos_count} repos • {profile.github_analysis.total_stars} stars • 
                     {profile.github_analysis.activity_level} activity
@@ -295,7 +298,9 @@ export default function CandidateOverviewPage() {
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-sm text-muted-foreground">GitHub Score:</span>
-                <span className="font-bold text-primary">{profile.github_score}/100</span>
+                <Badge className="bg-success/10 text-success border-success/30 text-lg px-3">
+                  {profile.github_score}/100
+                </Badge>
               </div>
             </div>
           </GlassCard>
@@ -305,11 +310,11 @@ export default function CandidateOverviewPage() {
       {/* Stats */}
       <div className="grid gap-4 md:grid-cols-5">
         {[
-          { label: "Total Applications", value: applicationStats.total, icon: FileText, color: "text-primary" },
-          { label: "In Progress", value: applicationStats.inProgress, icon: Clock, color: "text-info" },
-          { label: "Completed", value: applicationStats.completed, icon: CheckCircle, color: "text-success" },
-          { label: "Shortlisted", value: applicationStats.shortlisted, icon: Star, color: "text-warning" },
-          { label: "Rejected", value: applicationStats.rejected, icon: XCircle, color: "text-danger" },
+          { label: "Total Applications", value: applicationStats.total, icon: FileText, color: "primary" },
+          { label: "In Progress", value: applicationStats.inProgress, icon: Clock, color: "info" },
+          { label: "Completed", value: applicationStats.completed, icon: CheckCircle, color: "success" },
+          { label: "Shortlisted", value: applicationStats.shortlisted, icon: Star, color: "warning" },
+          { label: "Rejected", value: applicationStats.rejected, icon: XCircle, color: "danger" },
         ].map((stat, index) => (
           <motion.div
             key={stat.label}
@@ -317,8 +322,8 @@ export default function CandidateOverviewPage() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: index * 0.05 }}
           >
-            <GlassCard className="text-center">
-              <stat.icon className={cn("mx-auto h-6 w-6 mb-2", stat.color)} />
+            <GlassCard className="text-center hover:border-border/80 transition-all">
+              <stat.icon className={cn("mx-auto h-6 w-6 mb-2", `text-${stat.color}`)} />
               <div className="text-2xl font-bold">{stat.value}</div>
               <div className="text-xs text-muted-foreground">{stat.label}</div>
             </GlassCard>
@@ -328,104 +333,118 @@ export default function CandidateOverviewPage() {
 
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Upcoming Interviews */}
-        <GlassCard>
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold flex items-center gap-2">
-              <Calendar className="h-5 w-5 text-success" />
-              Upcoming Interviews
-            </h2>
-            <Button variant="ghost" size="sm" asChild>
-              <Link to="/candidate/applications">View All</Link>
-            </Button>
-          </div>
-
-          {applications.filter(a => a.status === "interviewing").length === 0 ? (
-            <div className="py-8 text-center">
-              <Calendar className="mx-auto h-10 w-10 text-muted-foreground" />
-              <p className="mt-2 text-sm text-muted-foreground">No upcoming interviews</p>
-              <Button variant="outline" size="sm" className="mt-3" asChild>
-                <Link to="/candidate/jobs">Browse Jobs</Link>
+        <motion.div
+          initial={{ opacity: 0, x: -20 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ delay: 0.2 }}
+        >
+          <GlassCard className="h-full">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold flex items-center gap-2">
+                <Calendar className="h-5 w-5 text-success" />
+                Upcoming Interviews
+              </h2>
+              <Button variant="ghost" size="sm" asChild>
+                <Link to="/candidate/applications">View All</Link>
               </Button>
             </div>
-          ) : (
-            <div className="space-y-3">
-              {applications
-                .filter(a => a.status === "interviewing")
-                .slice(0, 3)
-                .map((app) => (
-                  <div
-                    key={app.id}
-                    className="flex items-center justify-between rounded-lg bg-secondary/50 p-3"
-                  >
-                    <div>
-                      <p className="font-medium">{app.job?.title}</p>
-                      <p className="text-sm text-muted-foreground">Round {app.current_round}</p>
+
+            {applications.filter(a => a.status === "interviewing").length === 0 ? (
+              <div className="py-8 text-center">
+                <Calendar className="mx-auto h-10 w-10 text-muted-foreground" />
+                <p className="mt-2 text-sm text-muted-foreground">No upcoming interviews</p>
+                <Button variant="outline" size="sm" className="mt-3" asChild>
+                  <Link to="/candidate/jobs">Browse Jobs</Link>
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {applications
+                  .filter(a => a.status === "interviewing")
+                  .slice(0, 3)
+                  .map((app) => (
+                    <div
+                      key={app.id}
+                      className="flex items-center justify-between rounded-xl bg-secondary/50 p-3 hover:bg-secondary/70 transition-colors"
+                    >
+                      <div>
+                        <p className="font-medium">{app.job?.title}</p>
+                        <p className="text-sm text-muted-foreground">Round {app.current_round}</p>
+                      </div>
+                      <Button size="sm" className="bg-success hover:bg-success/90" asChild>
+                        <Link to="/candidate/interview">
+                          Start
+                          <ArrowRight className="ml-1 h-3 w-3" />
+                        </Link>
+                      </Button>
                     </div>
-                    <Button size="sm" className="bg-success hover:bg-success/90" asChild>
-                      <Link to="/candidate/interview">
-                        Start
-                        <ArrowRight className="ml-1 h-3 w-3" />
-                      </Link>
-                    </Button>
-                  </div>
-                ))}
-            </div>
-          )}
-        </GlassCard>
+                  ))}
+              </div>
+            )}
+          </GlassCard>
+        </motion.div>
 
         {/* Skill Profile */}
-        <GlassCard>
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold flex items-center gap-2">
-              <Zap className="h-5 w-5 text-success" />
-              Your Skills
-            </h2>
-            <Button variant="ghost" size="sm" asChild>
-              <Link to="/candidate/profile">Edit Profile</Link>
-            </Button>
-          </div>
+        <motion.div
+          initial={{ opacity: 0, x: 20 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ delay: 0.3 }}
+        >
+          <GlassCard className="h-full">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold flex items-center gap-2">
+                <Zap className="h-5 w-5 text-success" />
+                Your Skills
+              </h2>
+              <Button variant="ghost" size="sm" asChild>
+                <Link to="/candidate/profile">Edit Profile</Link>
+              </Button>
+            </div>
 
-          <div className="flex flex-wrap gap-2">
-            {(profile?.skills || []).length > 0 ? (
-              profile!.skills.map((skill) => (
-                <span
-                  key={skill}
-                  className="rounded-full bg-success/10 px-3 py-1 text-sm font-medium text-success"
-                >
-                  {skill}
-                </span>
-              ))
-            ) : profile?.github_analysis?.top_languages ? (
-              profile.github_analysis.top_languages.map((lang) => (
-                <span
-                  key={lang}
-                  className="rounded-full bg-success/10 px-3 py-1 text-sm font-medium text-success"
-                >
-                  {lang}
-                </span>
-              ))
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                Skills will be extracted from your GitHub and LinkedIn profiles
-              </p>
-            )}
-          </div>
+            <div className="flex flex-wrap gap-2">
+              {(profile?.skills || []).length > 0 ? (
+                profile!.skills!.slice(0, 12).map((skill) => (
+                  <Badge
+                    key={skill}
+                    variant="outline"
+                    className="bg-success/5 text-success border-success/20"
+                  >
+                    {skill}
+                  </Badge>
+                ))
+              ) : profile?.github_analysis?.top_languages ? (
+                profile.github_analysis.top_languages.map((lang) => (
+                  <Badge
+                    key={lang}
+                    variant="outline"
+                    className="bg-success/5 text-success border-success/20"
+                  >
+                    {lang}
+                  </Badge>
+                ))
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  Skills will be extracted from your GitHub and LinkedIn profiles
+                </p>
+              )}
+            </div>
 
-          <div className="mt-4 flex items-center gap-4 text-sm text-muted-foreground">
-            {profile?.github_url && (
-              <a href={profile.github_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 hover:text-foreground">
-                <Code className="h-4 w-4" />
-                GitHub
-              </a>
-            )}
-            {profile?.linkedin_url && (
-              <a href={profile.linkedin_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 hover:text-foreground">
-                <TrendingUp className="h-4 w-4" />
-                LinkedIn
-              </a>
-            )}
-          </div>
-        </GlassCard>
+            <div className="mt-4 flex items-center gap-4 text-sm text-muted-foreground">
+              {profile?.github_url && (
+                <a href={profile.github_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 hover:text-foreground transition-colors">
+                  <Code className="h-4 w-4" />
+                  GitHub
+                </a>
+              )}
+              {profile?.linkedin_url && (
+                <a href={profile.linkedin_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 hover:text-foreground transition-colors">
+                  <TrendingUp className="h-4 w-4" />
+                  LinkedIn
+                </a>
+              )}
+            </div>
+          </GlassCard>
+        </motion.div>
       </div>
 
       {/* Recommended Jobs */}
@@ -457,26 +476,17 @@ export default function CandidateOverviewPage() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.05 }}
             >
-              <GlassCard hover className="h-full">
+              <GlassCard hover className="h-full group">
                 <div className="flex items-start justify-between mb-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                    <Briefcase className="h-5 w-5 text-primary" />
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-success/10 group-hover:bg-success/20 transition-colors">
+                    <Briefcase className="h-5 w-5 text-success" />
                   </div>
                   <div className="flex items-center gap-2">
                     {priority.match_score > 0 && (
-                      <span className="text-xs font-medium bg-success/10 text-success px-2 py-0.5 rounded-full">
+                      <Badge className="bg-success/10 text-success border-success/20">
                         {priority.match_score}% match
-                      </span>
+                      </Badge>
                     )}
-                    <span className={cn(
-                      "rounded-full px-2 py-0.5 text-xs font-medium capitalize",
-                      priority.job.toughness_level === "easy" && "bg-success/10 text-success",
-                      priority.job.toughness_level === "medium" && "bg-warning/10 text-warning",
-                      priority.job.toughness_level === "hard" && "bg-danger/10 text-danger",
-                      priority.job.toughness_level === "expert" && "bg-purple-500/10 text-purple-500"
-                    )}>
-                      {priority.job.toughness_level}
-                    </span>
                   </div>
                 </div>
                 <h3 className="font-semibold line-clamp-1">{priority.job.title}</h3>
@@ -485,17 +495,21 @@ export default function CandidateOverviewPage() {
                 {priority.matching_skills.length > 0 && (
                   <div className="mt-2 flex flex-wrap gap-1">
                     {priority.matching_skills.slice(0, 2).map(skill => (
-                      <span key={skill} className="text-xs bg-primary/10 text-primary px-1.5 py-0.5 rounded">
+                      <Badge key={skill} variant="secondary" className="text-xs">
                         {skill}
-                      </span>
+                      </Badge>
                     ))}
                   </div>
                 )}
-                <p className="text-sm font-medium text-success mt-2">
-                  {formatSalary(priority.job.salary_min, priority.job.salary_max, priority.job.salary_currency)}
-                </p>
+                <div className="mt-3 pt-3 border-t border-border/50">
+                  <p className="text-xs text-muted-foreground">
+                    {formatSalary(priority.job.salary_min, priority.job.salary_max, priority.job.salary_currency)}
+                  </p>
+                </div>
                 <Button variant="outline" size="sm" className="w-full mt-3" asChild>
-                  <Link to={`/candidate/jobs/${priority.job.id}`}>View Details</Link>
+                  <Link to={`/candidate/jobs/${priority.job_id}`}>
+                    View Details
+                  </Link>
                 </Button>
               </GlassCard>
             </motion.div>
