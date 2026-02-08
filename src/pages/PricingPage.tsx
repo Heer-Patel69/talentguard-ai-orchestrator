@@ -49,7 +49,7 @@ const plans = [
     ctaVariant: "outline" as const,
   },
   {
-    name: "Professional",
+    name: "Enterprise",
     description: "For growing companies with serious hiring needs",
     price: "$299",
     period: "/month",
