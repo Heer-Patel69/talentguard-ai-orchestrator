@@ -347,8 +347,8 @@ export default function PricingPage() {
                   <tr className="border-b border-border">
                     <th className="text-left p-4 font-semibold">Feature</th>
                     <th className="text-center p-4 font-semibold">​Free Trial </th>
-                    <th className="text-center p-4 font-semibold bg-primary/5">Professional</th>
-                    <th className="text-center p-4 font-semibold">Enterprise</th>
+                    <th className="text-center p-4 font-semibold bg-primary/5">Enterprise</th>
+                    <th className="text-center p-4 font-semibold">Enterprise Pro</th>
                   </tr>
                 </thead>
                 <tbody>
