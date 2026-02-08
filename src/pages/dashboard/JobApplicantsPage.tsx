@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, memo } from "react";
 import { useParams, Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { GlassCard } from "@/components/ui/glass-card";
@@ -10,6 +10,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { CandidateDetailModal } from "@/components/dashboard/CandidateDetailModal";
 import {
   Select,
   SelectContent,
@@ -47,6 +48,8 @@ import {
   SortDesc,
   Briefcase,
   User,
+  FileDown,
+  Presentation,
 } from "lucide-react";
 import {
   Tooltip,
@@ -111,6 +114,7 @@ export default function JobApplicantsPage() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [sortBy, setSortBy] = useState<string>("applied_at");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+  const [selectedApplicant, setSelectedApplicant] = useState<{ applicationId: string; candidateId: string } | null>(null);
 
   useEffect(() => {
     if (jobId && user) {
@@ -583,11 +587,16 @@ export default function JobApplicantsPage() {
 
                       {/* Actions */}
                       <div className="flex items-center gap-2">
-                        <Button variant="outline" size="sm" asChild>
-                          <Link to={`/dashboard/candidates/${applicant.id}`}>
-                            <Eye className="mr-1 h-3 w-3" />
-                            View
-                          </Link>
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          onClick={() => setSelectedApplicant({ 
+                            applicationId: applicant.id, 
+                            candidateId: applicant.candidate_id 
+                          })}
+                        >
+                          <Eye className="mr-1 h-3 w-3" />
+                          View
                         </Button>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
@@ -648,6 +657,16 @@ export default function JobApplicantsPage() {
         <p className="text-sm text-muted-foreground text-center">
           Showing {filteredApplicants.length} of {applicants.length} applicants
         </p>
+      )}
+
+      {/* Candidate Detail Modal */}
+      {selectedApplicant && (
+        <CandidateDetailModal
+          open={!!selectedApplicant}
+          onOpenChange={(open) => !open && setSelectedApplicant(null)}
+          applicationId={selectedApplicant.applicationId}
+          candidateId={selectedApplicant.candidateId}
+        />
       )}
     </div>
   );
