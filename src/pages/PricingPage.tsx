@@ -25,7 +25,7 @@ import {
 
 const plans = [
   {
-    name: "Starter",
+    name: "Free Trial",
     description: "Perfect for small teams getting started with AI hiring",
     price: "$0",
     period: "/month",
