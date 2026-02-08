@@ -102,7 +102,7 @@ const plans = [{
 }, {
   name: "Enterprise Pro",
   description: "For large organizations with custom requirements",
-  price: "Custom",
+  price: "$199",
   period: "",
   icon: Crown,
   popular: false,
