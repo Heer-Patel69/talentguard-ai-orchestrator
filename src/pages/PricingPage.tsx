@@ -27,7 +27,7 @@ const plans = [
   {
     name: "Starter",
     description: "Perfect for small teams getting started with AI hiring",
-    price: "$99",
+    price: "$0",
     period: "/month",
     icon: Zap,
     popular: false,
