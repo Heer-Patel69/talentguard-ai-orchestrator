@@ -73,7 +73,7 @@ const plans = [
     ctaVariant: "hero" as const,
   },
   {
-    name: "Enterprise",
+    name: "Enterprise Pro",
     description: "For large organizations with custom requirements",
     price: "Custom",
     period: "",
