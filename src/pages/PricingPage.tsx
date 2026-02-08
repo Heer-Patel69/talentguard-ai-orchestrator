@@ -51,7 +51,7 @@ const plans = [
   {
     name: "Enterprise",
     description: "For growing companies with serious hiring needs",
-    price: "$299",
+    price: "$199",
     period: "/month",
     icon: Rocket,
     popular: true,
