@@ -36,13 +36,48 @@ import {
   Loader2,
   FileDown,
   Presentation,
+  TrendingUp,
+  TrendingDown,
+  AlertTriangle,
+  Plus,
+  Minus,
+  Target,
 } from "lucide-react";
+import { ScoreGauge } from "@/components/scoring/ScoreGauge";
 
 interface CandidateDetailModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   applicationId: string;
   candidateId: string;
+}
+
+interface RoundScoreData {
+  id: string;
+  round_number: number;
+  base_score: number | null;
+  clarifying_questions_bonus: number | null;
+  optimization_bonus: number | null;
+  edge_cases_bonus: number | null;
+  fraud_penalty: number | null;
+  hints_penalty: number | null;
+  final_score: number | null;
+  weight: number | null;
+  strengths: string[] | null;
+  weaknesses: string[] | null;
+  improvement_suggestions: string[] | null;
+  round_result: {
+    id: string;
+    score: number | null;
+    ai_feedback: string | null;
+    ai_explanation: string | null;
+    completed_at: string | null;
+    fraud_detected: boolean | null;
+    round: {
+      round_type: string;
+      duration_minutes: number | null;
+    } | null;
+  } | null;
 }
 
 interface CandidateDetails {
@@ -91,6 +126,7 @@ interface CandidateDetails {
     weaknesses: string[] | null;
     improvement_suggestions: string[] | null;
   } | null;
+  roundScores: RoundScoreData[];
 }
 
 export function CandidateDetailModal({
@@ -114,7 +150,7 @@ export function CandidateDetailModal({
     setIsLoading(true);
     try {
       // Fetch all data in parallel
-      const [profileRes, candidateProfileRes, applicationRes, scoresRes] = await Promise.all([
+      const [profileRes, candidateProfileRes, applicationRes, scoresRes, roundScoresRes] = await Promise.all([
         supabase
           .from("profiles")
           .select("full_name, email")
@@ -135,9 +171,43 @@ export function CandidateDetailModal({
           .select("*")
           .eq("application_id", applicationId)
           .maybeSingle(),
+        supabase
+          .from("round_scores")
+          .select(`
+            *,
+            round_result:round_results(
+              id,
+              score,
+              ai_feedback,
+              ai_explanation,
+              completed_at,
+              fraud_detected,
+              round:job_rounds(round_type, duration_minutes)
+            )
+          `)
+          .eq("application_id", applicationId)
+          .order("round_number", { ascending: true }),
       ]);
 
       const jobData = applicationRes.data?.job as any;
+      
+      // Process round scores data
+      const roundScoresData: RoundScoreData[] = (roundScoresRes.data || []).map((rs: any) => ({
+        id: rs.id,
+        round_number: rs.round_number,
+        base_score: rs.base_score,
+        clarifying_questions_bonus: rs.clarifying_questions_bonus,
+        optimization_bonus: rs.optimization_bonus,
+        edge_cases_bonus: rs.edge_cases_bonus,
+        fraud_penalty: rs.fraud_penalty,
+        hints_penalty: rs.hints_penalty,
+        final_score: rs.final_score,
+        weight: rs.weight,
+        strengths: rs.strengths,
+        weaknesses: rs.weaknesses,
+        improvement_suggestions: rs.improvement_suggestions,
+        round_result: rs.round_result,
+      }));
 
       setDetails({
         profile: profileRes.data,
@@ -153,6 +223,7 @@ export function CandidateDetailModal({
           : null,
         job: jobData,
         scores: scoresRes.data,
+        roundScores: roundScoresData,
       });
     } catch (error) {
       console.error("Error fetching candidate details:", error);
@@ -344,10 +415,11 @@ export function CandidateDetailModal({
           </div>
         ) : details ? (
           <Tabs defaultValue="overview" className="w-full">
-            <TabsList className="grid w-full grid-cols-4">
+            <TabsList className="grid w-full grid-cols-5">
               <TabsTrigger value="overview">Overview</TabsTrigger>
-              <TabsTrigger value="skills">Skills & Projects</TabsTrigger>
-              <TabsTrigger value="profile">Profile Analysis</TabsTrigger>
+              <TabsTrigger value="rounds">Interview Rounds</TabsTrigger>
+              <TabsTrigger value="skills">Skills</TabsTrigger>
+              <TabsTrigger value="profile">Profile</TabsTrigger>
               <TabsTrigger value="evaluation">Evaluation</TabsTrigger>
             </TabsList>
 
@@ -810,6 +882,270 @@ export function CandidateDetailModal({
                     </ul>
                   </GlassCard>
                 )}
+            </TabsContent>
+
+            {/* Interview Rounds Tab */}
+            <TabsContent value="rounds" className="space-y-4 mt-4">
+              {details.roundScores && details.roundScores.length > 0 ? (
+                <>
+                  {/* Rounds Overview */}
+                  <GlassCard className="p-4">
+                    <h3 className="font-semibold mb-4 flex items-center gap-2">
+                      <Target className="h-5 w-5 text-primary" />
+                      Interview Progress
+                    </h3>
+                    <div className="flex items-center gap-4 mb-4">
+                      <Progress
+                        value={
+                          (details.roundScores.length / (details.job?.num_rounds || 1)) * 100
+                        }
+                        className="flex-1 h-3"
+                      />
+                      <span className="text-sm font-medium">
+                        {details.roundScores.length} / {details.job?.num_rounds || "?"} Rounds
+                      </span>
+                    </div>
+                    <div className="grid gap-2 md:grid-cols-3">
+                      <div className="text-center p-3 rounded-lg bg-secondary/50">
+                        <div className="text-2xl font-bold text-primary">
+                          {Math.round(
+                            details.roundScores.reduce(
+                              (sum, r) => sum + (r.final_score || 0),
+                              0
+                            ) / details.roundScores.length
+                          )}
+                          %
+                        </div>
+                        <div className="text-sm text-muted-foreground">Average Score</div>
+                      </div>
+                      <div className="text-center p-3 rounded-lg bg-secondary/50">
+                        <div className="text-2xl font-bold text-success">
+                          {Math.max(...details.roundScores.map((r) => r.final_score || 0))}%
+                        </div>
+                        <div className="text-sm text-muted-foreground">Best Round</div>
+                      </div>
+                      <div className="text-center p-3 rounded-lg bg-secondary/50">
+                        <div className="text-2xl font-bold">
+                          {details.roundScores.filter((r) => r.round_result?.completed_at).length}
+                        </div>
+                        <div className="text-sm text-muted-foreground">Completed</div>
+                      </div>
+                    </div>
+                  </GlassCard>
+
+                  {/* Individual Round Cards */}
+                  {details.roundScores.map((round) => {
+                    const roundType = round.round_result?.round?.round_type || "unknown";
+                    const totalBonus =
+                      (round.clarifying_questions_bonus || 0) +
+                      (round.optimization_bonus || 0) +
+                      (round.edge_cases_bonus || 0);
+                    const totalPenalty =
+                      (round.fraud_penalty || 0) + (round.hints_penalty || 0);
+
+                    return (
+                      <GlassCard key={round.id} className="p-4">
+                        <div className="flex items-start gap-6">
+                          {/* Score Gauge */}
+                          <ScoreGauge
+                            score={round.final_score || 0}
+                            size="md"
+                            label={`Round ${round.round_number}`}
+                          />
+
+                          {/* Round Details */}
+                          <div className="flex-1">
+                            <div className="flex items-center justify-between mb-2">
+                              <div>
+                                <h4 className="font-semibold text-lg">
+                                  Round {round.round_number}
+                                </h4>
+                                <p className="text-sm text-muted-foreground capitalize">
+                                  {roundType.replace(/_/g, " ")}
+                                </p>
+                              </div>
+                              <div className="text-right">
+                                {round.round_result?.completed_at ? (
+                                  <Badge
+                                    variant="outline"
+                                    className="bg-success/10 text-success border-success/30"
+                                  >
+                                    <CheckCircle2 className="h-3 w-3 mr-1" />
+                                    Completed
+                                  </Badge>
+                                ) : (
+                                  <Badge
+                                    variant="outline"
+                                    className="bg-warning/10 text-warning border-warning/30"
+                                  >
+                                    <Clock className="h-3 w-3 mr-1" />
+                                    In Progress
+                                  </Badge>
+                                )}
+                                {round.round_result?.fraud_detected && (
+                                  <Badge
+                                    variant="outline"
+                                    className="ml-2 bg-danger/10 text-danger border-danger/30"
+                                  >
+                                    <AlertTriangle className="h-3 w-3 mr-1" />
+                                    Fraud Flag
+                                  </Badge>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Score Breakdown */}
+                            <div className="grid grid-cols-3 gap-4 mt-4 text-sm">
+                              <div className="p-2 rounded bg-secondary/30">
+                                <span className="text-muted-foreground">Base Score</span>
+                                <p className="font-semibold">
+                                  {(round.base_score || 0).toFixed(1)}
+                                </p>
+                              </div>
+                              <div className="p-2 rounded bg-success/10">
+                                <span className="text-muted-foreground flex items-center gap-1">
+                                  <Plus className="h-3 w-3 text-success" /> Bonus
+                                </span>
+                                <p className="font-semibold text-success">
+                                  +{totalBonus.toFixed(1)}
+                                </p>
+                              </div>
+                              <div className="p-2 rounded bg-danger/10">
+                                <span className="text-muted-foreground flex items-center gap-1">
+                                  <Minus className="h-3 w-3 text-danger" /> Penalty
+                                </span>
+                                <p className="font-semibold text-danger">
+                                  -{totalPenalty.toFixed(1)}
+                                </p>
+                              </div>
+                            </div>
+
+                            {/* Bonus Badges */}
+                            {totalBonus > 0 && (
+                              <div className="flex flex-wrap gap-2 mt-3">
+                                {(round.clarifying_questions_bonus || 0) > 0 && (
+                                  <span className="text-xs bg-success/10 text-success px-2 py-0.5 rounded-full">
+                                    +{round.clarifying_questions_bonus} Clarifying Questions
+                                  </span>
+                                )}
+                                {(round.optimization_bonus || 0) > 0 && (
+                                  <span className="text-xs bg-success/10 text-success px-2 py-0.5 rounded-full">
+                                    +{round.optimization_bonus} Optimization
+                                  </span>
+                                )}
+                                {(round.edge_cases_bonus || 0) > 0 && (
+                                  <span className="text-xs bg-success/10 text-success px-2 py-0.5 rounded-full">
+                                    +{round.edge_cases_bonus} Edge Cases
+                                  </span>
+                                )}
+                              </div>
+                            )}
+
+                            {/* Penalty Badges */}
+                            {totalPenalty > 0 && (
+                              <div className="flex flex-wrap gap-2 mt-2">
+                                {(round.fraud_penalty || 0) > 0 && (
+                                  <span className="text-xs bg-danger/10 text-danger px-2 py-0.5 rounded-full">
+                                    -{round.fraud_penalty} Fraud Flag
+                                  </span>
+                                )}
+                                {(round.hints_penalty || 0) > 0 && (
+                                  <span className="text-xs bg-danger/10 text-danger px-2 py-0.5 rounded-full">
+                                    -{round.hints_penalty} Hints Used
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* AI Feedback */}
+                        {round.round_result?.ai_feedback && (
+                          <div className="mt-4 p-3 rounded-lg bg-primary/5 border border-primary/10">
+                            <h5 className="text-sm font-medium mb-1">AI Feedback</h5>
+                            <p className="text-sm text-muted-foreground">
+                              {round.round_result.ai_feedback}
+                            </p>
+                          </div>
+                        )}
+
+                        {/* Strengths & Weaknesses */}
+                        <div className="mt-4 grid grid-cols-2 gap-4 pt-4 border-t border-border">
+                          <div>
+                            <h5 className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1">
+                              <TrendingUp className="h-3 w-3 text-success" /> Strengths
+                            </h5>
+                            <ul className="space-y-1">
+                              {(round.strengths || []).slice(0, 3).map((s, i) => (
+                                <li
+                                  key={i}
+                                  className="text-xs text-muted-foreground line-clamp-1"
+                                >
+                                  • {s}
+                                </li>
+                              ))}
+                              {(!round.strengths || round.strengths.length === 0) && (
+                                <li className="text-xs text-muted-foreground italic">
+                                  No strengths recorded
+                                </li>
+                              )}
+                            </ul>
+                          </div>
+                          <div>
+                            <h5 className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1">
+                              <TrendingDown className="h-3 w-3 text-warning" /> Areas to
+                              Improve
+                            </h5>
+                            <ul className="space-y-1">
+                              {(round.weaknesses || []).slice(0, 3).map((w, i) => (
+                                <li
+                                  key={i}
+                                  className="text-xs text-muted-foreground line-clamp-1"
+                                >
+                                  • {w}
+                                </li>
+                              ))}
+                              {(!round.weaknesses || round.weaknesses.length === 0) && (
+                                <li className="text-xs text-muted-foreground italic">
+                                  No improvements recorded
+                                </li>
+                              )}
+                            </ul>
+                          </div>
+                        </div>
+
+                        {/* Improvement Suggestions */}
+                        {round.improvement_suggestions &&
+                          round.improvement_suggestions.length > 0 && (
+                            <div className="mt-3 pt-3 border-t border-border">
+                              <h5 className="text-xs font-medium text-muted-foreground mb-2">
+                                Recommendations
+                              </h5>
+                              <ul className="space-y-1">
+                                {round.improvement_suggestions.slice(0, 2).map((sug, i) => (
+                                  <li
+                                    key={i}
+                                    className="text-xs text-muted-foreground flex items-start gap-1"
+                                  >
+                                    <span className="text-primary">→</span> {sug}
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                      </GlassCard>
+                    );
+                  })}
+                </>
+              ) : (
+                <GlassCard className="p-8 text-center">
+                  <Clock className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
+                  <h3 className="font-semibold text-lg mb-2">No Interview Rounds Yet</h3>
+                  <p className="text-muted-foreground">
+                    The candidate hasn't completed any interview rounds for this application.
+                  </p>
+                </GlassCard>
+              )}
             </TabsContent>
           </Tabs>
         ) : (
