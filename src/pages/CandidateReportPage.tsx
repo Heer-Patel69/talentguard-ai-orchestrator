@@ -3,7 +3,8 @@ import { useParams, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { GlassCard } from "@/components/ui/glass-card";
 import { TrustScoreBadge } from "@/components/ui/trust-indicators";
-import { PageBackground, Container } from "@/components/ui/layout";
+import { Container } from "@/components/ui/layout";
+import { InteractiveBackground } from "@/components/ui/interactive-background";
 import { Navbar } from "@/components/layout/Navbar";
 import { CodePlayback } from "@/components/report/CodePlayback";
 import { DecisionReasoning } from "@/components/report/DecisionReasoning";
@@ -115,7 +116,7 @@ export default function CandidateReportPage() {
 
   return (
     <div className="min-h-screen pb-12">
-      <PageBackground pattern="dots" />
+      <InteractiveBackground particleCount={15} enableParticles={true} enableGradientOrbs={true} enableGridPattern={true} />
       <Navbar />
 
       <Container className="pt-28">

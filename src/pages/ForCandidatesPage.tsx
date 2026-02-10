@@ -2,7 +2,8 @@ import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { GlassCard } from "@/components/ui/glass-card";
-import { Container, Section, SectionHeader, PageBackground } from "@/components/ui/layout";
+import { Container, Section, SectionHeader } from "@/components/ui/layout";
+import { InteractiveBackground } from "@/components/ui/interactive-background";
 import { Navbar, Footer } from "@/components/layout/Navbar";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -140,7 +141,7 @@ const stats = [
 export default function ForCandidatesPage() {
   return (
     <div className="min-h-screen">
-      <PageBackground pattern="grid" />
+      <InteractiveBackground particleCount={25} enableParticles={true} enableGradientOrbs={true} enableGridPattern={true} />
       <Navbar />
 
       {/* Hero Section */}

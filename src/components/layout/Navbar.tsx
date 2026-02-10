@@ -53,7 +53,7 @@ export function Navbar() {
     }} transition={{
       duration: 0.5
     }} className="fixed top-0 left-0 right-0 z-50 pt-1">
-        <nav className={cn("mx-4 mt-4 rounded-2xl border px-6 py-4 md:mx-auto md:max-w-6xl transition-all duration-300", isScrolled ? "glass-card-elevated border-border/50 bg-background/80 backdrop-blur-xl shadow-lg" : "glass-card border-border/30")}>
+        <nav className={cn("mx-4 mt-4 rounded-2xl border px-6 py-4 md:mx-auto md:max-w-6xl transition-all duration-300", isScrolled ? "glass-card-elevated border-primary/10 bg-background/85 backdrop-blur-xl shadow-lg shadow-primary/5" : "glass-card border-border/20")}>
           <div className="flex items-center justify-between">
             {/* Logo */}
             <Link to="/" className="flex items-center gap-2 group">
@@ -65,7 +65,7 @@ export function Navbar() {
             }} className="flex h-9 w-9 items-center justify-center rounded-lg overflow-hidden transition-shadow group-hover:shadow-lg group-hover:shadow-primary/30">
                 <img src={logo} alt="HireMinds AI" className="h-9 w-9 object-cover" />
               </motion.div>
-              <span className="text-lg font-bold">
+              <span className="text-lg font-bold font-display tracking-tight">
                 Hire<span className="gradient-text">Minds</span> AI
               </span>
             </Link>
@@ -196,7 +196,7 @@ export function Navbar() {
 export const Footer = forwardRef<HTMLElement, React.HTMLAttributes<HTMLElement>>(
   function Footer(props, ref) {
     return (
-      <footer ref={ref} className="border-t border-border bg-card/50 py-12" {...props}>
+      <footer ref={ref} className="border-t border-border/50 bg-card/50 backdrop-blur-sm py-12" {...props}>
         <div className="container mx-auto px-4">
           <div className="grid gap-8 md:grid-cols-4">
             <div>
@@ -204,11 +204,11 @@ export const Footer = forwardRef<HTMLElement, React.HTMLAttributes<HTMLElement>>
                 <div className="flex h-8 w-8 items-center justify-center rounded-lg overflow-hidden transition-transform group-hover:scale-105">
                   <img src={logo} alt="HireMinds AI" className="h-8 w-8 object-cover" />
                 </div>
-                <span className="font-bold">
+                <span className="font-bold font-display tracking-tight">
                   Hire<span className="gradient-text">Minds</span> AI
                 </span>
               </Link>
-              <p className="mt-4 text-sm text-muted-foreground">
+              <p className="mt-4 text-sm text-muted-foreground font-body">
                 Autonomous AI-powered hiring that's fraud-proof and enterprise-ready.
               </p>
               <div className="mt-4 flex gap-4">
@@ -320,7 +320,7 @@ export const Footer = forwardRef<HTMLElement, React.HTMLAttributes<HTMLElement>>
               </ul>
             </div>
           </div>
-          <div className="mt-12 flex flex-col items-center justify-between gap-4 border-t border-border pt-8 md:flex-row">
+          <div className="mt-12 flex flex-col items-center justify-between gap-4 border-t border-border/50 pt-8 md:flex-row">
             <p className="text-sm text-muted-foreground">
               © {new Date().getFullYear()} HireMinds AI. All rights reserved.
             </p>

@@ -70,19 +70,19 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
       {/* Sidebar */}
       <aside
         className={cn(
-          "fixed left-0 top-0 z-50 h-screen border-r border-border bg-card transition-all duration-300",
+          "fixed left-0 top-0 z-50 h-screen border-r border-border/50 bg-card/95 backdrop-blur-xl transition-all duration-300",
           sidebarOpen ? "w-64" : "w-20",
           mobileMenuOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
         )}
       >
         {/* Logo */}
-        <div className="flex h-16 items-center justify-between border-b border-border px-4">
+        <div className="flex h-16 items-center justify-between border-b border-border/50 px-4">
           <Link to="/" className="flex items-center gap-2">
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-primary">
               <Brain className="h-5 w-5 text-primary-foreground" />
             </div>
             {sidebarOpen && (
-              <span className="text-lg font-bold">
+              <span className="text-lg font-bold font-display tracking-tight">
                 Hire<span className="gradient-text">Minds</span>
               </span>
             )}
@@ -129,10 +129,10 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                 key={link.href}
                 to={link.href}
                 className={cn(
-                  "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
+                  "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200",
                   isActive
-                    ? "bg-primary/10 text-primary"
-                    : "text-muted-foreground hover:bg-secondary hover:text-foreground",
+                    ? "bg-primary/10 text-primary shadow-sm shadow-primary/10"
+                    : "text-muted-foreground hover:bg-secondary/80 hover:text-foreground",
                   !sidebarOpen && "justify-center"
                 )}
               >
@@ -144,7 +144,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         </nav>
 
         {/* User Section */}
-        <div className="absolute bottom-0 left-0 right-0 border-t border-border p-4">
+        <div className="absolute bottom-0 left-0 right-0 border-t border-border/50 p-4">
           <div className={cn("flex items-center gap-3", !sidebarOpen && "justify-center")}>
             <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10">
               <Building2 className="h-4 w-4 text-primary" />
@@ -177,7 +177,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         )}
       >
         {/* Top Header */}
-        <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/60 lg:px-6">
+        <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border/50 bg-background/80 px-4 backdrop-blur-xl lg:px-6">
           <div className="flex items-center gap-4">
             <button
               onClick={() => setMobileMenuOpen(true)}
@@ -190,7 +190,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
               <input
                 type="text"
                 placeholder="Search jobs, candidates..."
-                className="h-9 w-64 rounded-lg border border-border bg-secondary/50 pl-9 pr-4 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                className="h-9 w-64 rounded-xl border border-border/50 bg-secondary/50 pl-9 pr-4 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
               />
             </div>
           </div>

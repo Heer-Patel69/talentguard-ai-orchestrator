@@ -5,7 +5,8 @@ import { GlassCard } from "@/components/ui/glass-card";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-import { PageBackground, Container } from "@/components/ui/layout";
+import { Container } from "@/components/ui/layout";
+import { InteractiveBackground } from "@/components/ui/interactive-background";
 import {
   Camera,
   CheckCircle2,
@@ -170,7 +171,7 @@ export default function FaceVerificationPage() {
 
   return (
     <div className="min-h-screen py-12">
-      <PageBackground pattern="dots" />
+      <InteractiveBackground particleCount={15} enableParticles={true} enableGradientOrbs={true} enableGridPattern={true} />
       <Container className="max-w-2xl">
         <div className="text-center mb-8">
           <Link to="/" className="inline-flex items-center gap-2 mb-4">
