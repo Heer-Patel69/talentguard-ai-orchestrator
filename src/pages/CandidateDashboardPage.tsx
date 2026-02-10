@@ -2,7 +2,8 @@ import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { GlassCard } from "@/components/ui/glass-card";
-import { PageBackground, Container } from "@/components/ui/layout";
+import { Container } from "@/components/ui/layout";
+import { InteractiveBackground } from "@/components/ui/interactive-background";
 import { Navbar } from "@/components/layout/Navbar";
 import { useAuth } from "@/contexts/AuthContext";
 import { useEffect, useState } from "react";
@@ -94,7 +95,7 @@ export default function CandidateDashboardPage() {
 
   return (
     <div className="min-h-screen">
-      <PageBackground pattern="dots" />
+      <InteractiveBackground particleCount={15} enableParticles={true} enableGradientOrbs={true} enableGridPattern={true} />
       <Navbar />
 
       <Container className="pt-28 pb-12">

@@ -69,15 +69,15 @@ export function SectionHeader({
       )}
     >
       {eyebrow && (
-        <span className="mb-4 inline-block rounded-full border border-primary/30 bg-primary/10 px-4 py-1.5 text-sm font-medium text-primary">
+        <span className="mb-4 inline-block rounded-full border border-primary/30 bg-primary/10 px-5 py-2 text-sm font-semibold text-primary tracking-wide">
           {eyebrow}
         </span>
       )}
-      <h2 className="mb-4 text-3xl font-bold tracking-tight md:text-4xl lg:text-5xl">
+      <h2 className="mb-4 text-3xl font-bold font-display tracking-tight md:text-4xl lg:text-5xl">
         {title}
       </h2>
       {description && (
-        <p className="text-lg text-muted-foreground md:text-xl">{description}</p>
+        <p className="text-lg text-muted-foreground font-body md:text-xl leading-relaxed">{description}</p>
       )}
     </div>
   );
