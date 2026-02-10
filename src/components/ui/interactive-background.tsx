@@ -11,7 +11,6 @@ interface InteractiveBackgroundProps {
   enableNoise?: boolean;
 }
 
-// Hexagonal grid node for a "neural network" effect — unique to HireMinds
 export const InteractiveBackground = memo(function InteractiveBackground({
   className,
   particleCount = 35,
@@ -24,14 +23,8 @@ export const InteractiveBackground = memo(function InteractiveBackground({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animationFrameRef = useRef<number>();
   const nodesRef = useRef<Array<{
-    x: number;
-    y: number;
-    baseX: number;
-    baseY: number;
-    size: number;
-    opacity: number;
-    phase: number;
-    speed: number;
+    x: number; y: number; baseX: number; baseY: number;
+    size: number; opacity: number; phase: number; speed: number;
   }>>([]);
   const mousePosRef = useRef({ x: -1000, y: -1000 });
   const [isVisible, setIsVisible] = useState(true);
@@ -53,7 +46,6 @@ export const InteractiveBackground = memo(function InteractiveBackground({
     const now = performance.now();
     if (now - lastMouseUpdate.current < 32) return;
     lastMouseUpdate.current = now;
-
     mouseX.set(e.clientX / window.innerWidth);
     mouseY.set(e.clientY / window.innerHeight);
     mousePosRef.current = { x: e.clientX, y: e.clientY };
@@ -73,7 +65,7 @@ export const InteractiveBackground = memo(function InteractiveBackground({
     return () => window.removeEventListener("mousemove", handleMouseMove);
   }, [handleMouseMove]);
 
-  // Neural-network-style hexagonal nodes
+  // Dotted grid nodes with connections
   useEffect(() => {
     if (!enableParticles || !canvasRef.current || !isVisible) return;
 
@@ -99,15 +91,11 @@ export const InteractiveBackground = memo(function InteractiveBackground({
     let resizeTimeout: NodeJS.Timeout;
     const handleResize = () => {
       clearTimeout(resizeTimeout);
-      resizeTimeout = setTimeout(() => {
-        resizeCanvas();
-        initNodes();
-      }, 150);
+      resizeTimeout = setTimeout(() => { resizeCanvas(); initNodes(); }, 150);
     };
     window.addEventListener("resize", handleResize, { passive: true });
 
     const initNodes = () => {
-      // Create a scattered hex-grid-like pattern
       const spacing = Math.max(80, Math.min(width, height) / 10);
       const nodes: typeof nodesRef.current = [];
       const cols = Math.ceil(width / spacing) + 2;
@@ -115,17 +103,12 @@ export const InteractiveBackground = memo(function InteractiveBackground({
 
       for (let row = -1; row < rows; row++) {
         for (let col = -1; col < cols; col++) {
-          // Skip some nodes randomly for organic feel
           if (Math.random() > 0.55) continue;
-
           const offsetX = row % 2 === 0 ? 0 : spacing * 0.5;
           const x = col * spacing + offsetX + (Math.random() - 0.5) * spacing * 0.4;
           const y = row * spacing * 0.866 + (Math.random() - 0.5) * spacing * 0.3;
-
           nodes.push({
-            x, y,
-            baseX: x,
-            baseY: y,
+            x, y, baseX: x, baseY: y,
             size: Math.random() * 1.8 + 0.6,
             opacity: Math.random() * 0.3 + 0.1,
             phase: Math.random() * Math.PI * 2,
@@ -133,8 +116,6 @@ export const InteractiveBackground = memo(function InteractiveBackground({
           });
         }
       }
-
-      // Limit to particleCount
       nodesRef.current = nodes.slice(0, Math.min(nodes.length, particleCount * 3));
     };
 
@@ -160,16 +141,13 @@ export const InteractiveBackground = memo(function InteractiveBackground({
       lastFrameTime = currentTime - (deltaTime % frameInterval);
 
       ctx.clearRect(0, 0, width, height);
-
       const mousePos = mousePosRef.current;
       const nodes = nodesRef.current;
       const time = currentTime * 0.001;
 
-      // Draw connections first
+      // Draw connections
       for (let i = 0; i < nodes.length; i++) {
         const nodeA = nodes[i];
-
-        // Gentle breathing motion
         nodeA.x = nodeA.baseX + Math.sin(time * nodeA.speed + nodeA.phase) * 6;
         nodeA.y = nodeA.baseY + Math.cos(time * nodeA.speed * 0.7 + nodeA.phase) * 4;
 
@@ -191,25 +169,23 @@ export const InteractiveBackground = memo(function InteractiveBackground({
 
           if (distSq < connectionDistance * connectionDistance) {
             const dist = Math.sqrt(distSq);
-            const opacity = (1 - dist / connectionDistance) * 0.12;
-
-            // Teal/cyan colored lines
+            const opacity = (1 - dist / connectionDistance) * 0.1;
             ctx.beginPath();
             ctx.moveTo(nodeA.x, nodeA.y);
             ctx.lineTo(nodeB.x, nodeB.y);
-            ctx.strokeStyle = `hsla(172, 50%, 55%, ${opacity})`;
+            ctx.strokeStyle = `hsla(243, 60%, 65%, ${opacity})`;
             ctx.lineWidth = 0.6;
             ctx.stroke();
           }
         }
 
-        // Mouse connection line
+        // Mouse connection - indigo accent
         if (distM < mouseRadius * 1.5) {
-          const opacity = (1 - distM / (mouseRadius * 1.5)) * 0.2;
+          const opacity = (1 - distM / (mouseRadius * 1.5)) * 0.15;
           ctx.beginPath();
           ctx.moveTo(nodeA.x, nodeA.y);
           ctx.lineTo(mousePos.x, mousePos.y);
-          ctx.strokeStyle = `hsla(35, 80%, 60%, ${opacity})`;
+          ctx.strokeStyle = `hsla(243, 75%, 70%, ${opacity})`;
           ctx.lineWidth = 0.5;
           ctx.stroke();
         }
@@ -217,23 +193,20 @@ export const InteractiveBackground = memo(function InteractiveBackground({
 
       // Draw nodes
       for (const node of nodes) {
-        // Soft glow
         const gradient = ctx.createRadialGradient(
-          node.x, node.y, 0,
-          node.x, node.y, node.size * 5
+          node.x, node.y, 0, node.x, node.y, node.size * 5
         );
-        gradient.addColorStop(0, `hsla(172, 55%, 60%, ${node.opacity * 0.5})`);
-        gradient.addColorStop(1, `hsla(172, 55%, 60%, 0)`);
+        gradient.addColorStop(0, `hsla(243, 65%, 70%, ${node.opacity * 0.5})`);
+        gradient.addColorStop(1, `hsla(243, 65%, 70%, 0)`);
 
         ctx.beginPath();
         ctx.arc(node.x, node.y, node.size * 5, 0, Math.PI * 2);
         ctx.fillStyle = gradient;
         ctx.fill();
 
-        // Core dot
         ctx.beginPath();
         ctx.arc(node.x, node.y, node.size, 0, Math.PI * 2);
-        ctx.fillStyle = `hsla(172, 55%, 65%, ${node.opacity * 0.9})`;
+        ctx.fillStyle = `hsla(243, 65%, 75%, ${node.opacity * 0.9})`;
         ctx.fill();
       }
 
@@ -254,24 +227,15 @@ export const InteractiveBackground = memo(function InteractiveBackground({
       ref={containerRef}
       className={cn("fixed inset-0 -z-10 overflow-hidden pointer-events-none", className)}
     >
-      {/* Base gradient */}
+      {/* Deep obsidian base */}
       <div className="absolute inset-0 bg-gradient-to-br from-background via-background to-background/90" />
 
-      {/* Subtle hex grid overlay */}
+      {/* Subtle dotted grid */}
       {enableGridPattern && (
-        <div
-          className="absolute inset-0 opacity-[0.025]"
-          style={{
-            backgroundImage: `
-              linear-gradient(to right, hsl(var(--primary)) 1px, transparent 1px),
-              linear-gradient(to bottom, hsl(var(--primary)) 1px, transparent 1px)
-            `,
-            backgroundSize: "72px 72px",
-          }}
-        />
+        <div className="absolute inset-0 bg-grid-animated" />
       )}
 
-      {/* Gradient orbs — teal and amber */}
+      {/* Indigo gradient orbs */}
       {enableGradientOrbs && (
         <>
           <motion.div
@@ -279,9 +243,8 @@ export const InteractiveBackground = memo(function InteractiveBackground({
             style={{
               left: useTransform(gradientX, (v) => `${v}%`),
               top: useTransform(gradientY, (v) => `${v}%`),
-              x: "-50%",
-              y: "-50%",
-              background: "radial-gradient(circle, hsla(172, 60%, 50%, 0.07) 0%, hsla(195, 75%, 50%, 0.03) 40%, transparent 70%)",
+              x: "-50%", y: "-50%",
+              background: "radial-gradient(circle, hsla(243, 75%, 59%, 0.08) 0%, hsla(263, 70%, 55%, 0.03) 40%, transparent 70%)",
               filter: "blur(70px)",
             }}
           />
@@ -290,22 +253,17 @@ export const InteractiveBackground = memo(function InteractiveBackground({
             style={{
               left: useTransform(orb2X, (v) => `${v}%`),
               top: useTransform(orb2Y, (v) => `${v}%`),
-              x: "-50%",
-              y: "-50%",
-              background: "radial-gradient(circle, hsla(35, 92%, 58%, 0.06) 0%, hsla(15, 80%, 55%, 0.03) 40%, transparent 70%)",
+              x: "-50%", y: "-50%",
+              background: "radial-gradient(circle, hsla(160, 60%, 45%, 0.05) 0%, hsla(243, 75%, 59%, 0.03) 40%, transparent 70%)",
               filter: "blur(50px)",
             }}
           />
         </>
       )}
 
-      {/* Neural network canvas */}
+      {/* Canvas nodes */}
       {enableParticles && (
-        <canvas
-          ref={canvasRef}
-          className="absolute inset-0"
-          style={{ opacity: 0.65 }}
-        />
+        <canvas ref={canvasRef} className="absolute inset-0" style={{ opacity: 0.65 }} />
       )}
 
       {/* Noise texture */}
