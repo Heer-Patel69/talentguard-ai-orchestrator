@@ -30,13 +30,13 @@ interface DashboardLayoutProps {
 }
 
 const sidebarLinks = [
-  { href: "/dashboard", label: "Overview", icon: LayoutDashboard },
-  { href: "/dashboard/command-center", label: "Command Center", icon: Target },
+  { href: "/dashboard", label: "Command Center", icon: LayoutDashboard },
+  { href: "/dashboard/command-center", label: "Pipelines", icon: Target },
   { href: "/dashboard/jobs", label: "Manage Jobs", icon: Briefcase },
   { href: "/dashboard/candidates", label: "Candidates", icon: Users },
   { href: "/dashboard/analytics", label: "Analytics", icon: BarChart3 },
   { href: "/dashboard/fairness", label: "Fairness", icon: Scale },
-  { href: "/dashboard/learning", label: "AI Learning", icon: GraduationCap },
+  { href: "/dashboard/learning", label: "AI Config", icon: GraduationCap },
   { href: "/dashboard/settings", label: "Settings", icon: Settings },
 ];
 
@@ -67,11 +67,11 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         )}
       </AnimatePresence>
 
-      {/* Sidebar */}
+      {/* Sidebar — Glass Panel */}
       <aside
         className={cn(
-          "fixed left-0 top-0 z-50 h-screen border-r border-border/50 bg-card/95 backdrop-blur-xl transition-all duration-300",
-          sidebarOpen ? "w-64" : "w-20",
+          "fixed left-0 top-0 z-50 h-screen glass-panel transition-all duration-300",
+          sidebarOpen ? "w-[250px]" : "w-20",
           mobileMenuOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
         )}
       >
@@ -79,21 +79,21 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         <div className="flex h-16 items-center justify-between border-b border-border/50 px-4">
           <Link to="/" className="flex items-center gap-2">
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-primary">
-              <Brain className="h-5 w-5 text-white" />
+              <Brain className="h-5 w-5 text-primary-foreground" />
             </div>
             {sidebarOpen && (
-              <span className="text-lg font-bold font-display tracking-tight">
+              <span className="text-lg font-bold tracking-tight">
                 Hire<span className="gradient-text">Minds</span>
               </span>
             )}
           </Link>
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="hidden lg:block"
+            className="hidden lg:block text-muted-foreground hover:text-foreground transition-colors"
           >
             <ChevronDown
               className={cn(
-                "h-5 w-5 text-muted-foreground transition-transform",
+                "h-5 w-5 transition-transform",
                 !sidebarOpen && "rotate-90"
               )}
             />
@@ -129,13 +129,22 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                 key={link.href}
                 to={link.href}
                 className={cn(
-                  "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200",
+                  "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200 relative",
                   isActive
-                    ? "bg-primary/10 text-primary shadow-sm shadow-primary/10"
+                    ? "bg-primary/10 text-primary"
                     : "text-muted-foreground hover:bg-secondary/80 hover:text-foreground",
                   !sidebarOpen && "justify-center"
                 )}
               >
+                {/* Active indicator — neon indigo left border */}
+                {isActive && (
+                  <motion.div
+                    layoutId="sidebar-active"
+                    className="absolute left-0 top-1 bottom-1 w-[3px] rounded-full bg-primary"
+                    style={{ boxShadow: "0 0 8px hsla(243, 75%, 59%, 0.5)" }}
+                    transition={{ type: "spring", stiffness: 350, damping: 30 }}
+                  />
+                )}
                 <link.icon className="h-5 w-5 shrink-0" />
                 {sidebarOpen && link.label}
               </Link>
@@ -152,7 +161,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
             {sidebarOpen && (
               <div className="flex-1 overflow-hidden">
                 <p className="truncate text-sm font-medium">Company</p>
-                <p className="truncate text-xs text-muted-foreground">
+                <p className="truncate text-xs text-muted-foreground font-mono">
                   {user?.email}
                 </p>
               </div>
@@ -160,7 +169,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
             {sidebarOpen && (
               <button
                 onClick={handleSignOut}
-                className="text-muted-foreground hover:text-foreground"
+                className="text-muted-foreground hover:text-foreground transition-colors"
               >
                 <LogOut className="h-4 w-4" />
               </button>
@@ -173,11 +182,11 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
       <div
         className={cn(
           "min-h-screen transition-all duration-300",
-          sidebarOpen ? "lg:pl-64" : "lg:pl-20"
+          sidebarOpen ? "lg:pl-[250px]" : "lg:pl-20"
         )}
       >
-        {/* Top Header */}
-        <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border/50 bg-background/80 px-4 backdrop-blur-xl lg:px-6">
+        {/* Top Header — glass */}
+        <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border/50 glass-panel px-4 lg:px-6">
           <div className="flex items-center gap-4">
             <button
               onClick={() => setMobileMenuOpen(true)}
@@ -185,19 +194,26 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
             >
               <Menu className="h-6 w-6" />
             </button>
-            <div className="relative hidden md:block">
+
+            {/* AI Status Indicator */}
+            <div className="hidden md:flex items-center gap-2 rounded-full border border-border/50 bg-secondary/50 px-3 py-1.5">
+              <span className="led-green" />
+              <span className="text-xs font-mono text-muted-foreground">AI SYSTEM ONLINE</span>
+            </div>
+
+            <div className="relative hidden lg:block">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <input
                 type="text"
                 placeholder="Search jobs, candidates..."
-                className="h-9 w-64 rounded-xl border border-border/50 bg-secondary/50 pl-9 pr-4 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
+                className="h-9 w-64 rounded-lg border border-border/50 bg-secondary/50 pl-9 pr-4 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
               />
             </div>
           </div>
 
           <div className="flex items-center gap-3">
             <ThemeToggle />
-            <button className="relative rounded-lg p-2 hover:bg-secondary">
+            <button className="relative rounded-lg p-2 hover:bg-secondary transition-colors">
               <Bell className="h-5 w-5 text-muted-foreground" />
               <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-danger" />
             </button>
