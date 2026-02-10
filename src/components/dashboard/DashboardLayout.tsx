@@ -79,7 +79,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         <div className="flex h-16 items-center justify-between border-b border-border/50 px-4">
           <Link to="/" className="flex items-center gap-2">
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-primary">
-              <Brain className="h-5 w-5 text-primary-foreground" />
+              <Brain className="h-5 w-5 text-white" />
             </div>
             {sidebarOpen && (
               <span className="text-lg font-bold font-display tracking-tight">
