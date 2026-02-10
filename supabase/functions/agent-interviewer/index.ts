@@ -28,23 +28,30 @@ serve(async (req) => {
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Fetch application with all context
-    const { data: application } = await supabase
+    // Fetch application
+    const { data: application, error: appError } = await supabase
       .from("applications")
-      .select(`
-        *,
-        job:jobs!applications_job_id_fkey(*),
-        candidate:candidate_profiles!applications_candidate_id_fkey(
-          *,
-          profile:profiles!candidate_profiles_user_id_fkey(*)
-        )
-      `)
+      .select("*, job:jobs!applications_job_id_fkey(*)")
       .eq("id", application_id)
       .single();
 
-    if (!application) {
+    if (!application || appError) {
+      console.error("Application fetch error:", appError);
       throw new Error("Application not found");
     }
+
+    // Fetch candidate profile and user profile separately
+    const { data: candidate } = await supabase
+      .from("candidate_profiles")
+      .select("*")
+      .eq("user_id", application.candidate_id)
+      .single();
+
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("user_id", application.candidate_id)
+      .single();
 
     // Fetch previous agent results for context
     const { data: previousResults } = await supabase
@@ -54,8 +61,6 @@ serve(async (req) => {
       .order("agent_number");
 
     const job = application.job;
-    const candidate = application.candidate;
-    const profile = candidate?.profile;
 
     // Handle different actions
     if (action === "start_interview") {
