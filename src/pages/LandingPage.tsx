@@ -35,14 +35,14 @@ const features = [
     title: "Multi-Agent Orchestration",
     description:
       "Autonomous AI agents coordinate the entire hiring process—from screening to final decision—without human intervention.",
-    color: "from-purple-500 to-pink-500",
+    color: "from-teal-500 to-cyan-500",
   },
   {
     icon: Eye,
     title: "Advanced Proctoring",
     description:
       "Real-time gaze detection, person verification, and plagiarism checks ensure interview integrity.",
-    color: "from-blue-500 to-cyan-500",
+    color: "from-cyan-500 to-blue-500",
   },
   {
     icon: Code,
@@ -56,21 +56,21 @@ const features = [
     title: "Fraud Detection",
     description:
       "Tab-switching detection, multiple face alerts, and code playback analysis prevent cheating.",
-    color: "from-orange-500 to-red-500",
+    color: "from-amber-500 to-orange-500",
   },
   {
     icon: Bot,
     title: "AI Interviewer",
     description:
       "Dynamic questioning that adapts based on candidate responses and performance in real-time.",
-    color: "from-violet-500 to-purple-500",
+    color: "from-teal-600 to-emerald-500",
   },
   {
     icon: BarChart3,
     title: "Explainable Decisions",
     description:
       "Every hire/no-hire decision comes with detailed reasoning that recruiters can trust and audit.",
-    color: "from-pink-500 to-rose-500",
+    color: "from-cyan-500 to-teal-500",
   },
 ];
 
@@ -98,7 +98,7 @@ const triggerConfetti = () => {
     particleCount: 120,
     spread: 80,
     origin: { y: 0.6 },
-    colors: ['#7C3AFF', '#FF3A8C', '#FF6B35', '#10B981', '#3B82F6'],
+    colors: ['#1a9e8f', '#2bb5a6', '#e8993e', '#3ca8c9', '#5cc4b5'],
   });
 };
 
